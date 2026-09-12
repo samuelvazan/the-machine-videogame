@@ -1,3 +1,21 @@
 [gd_scene format=3 uid="uid://cs3mkyqym8kdr"]
 
+[ext_resource type="Script" uid="uid://d3g1s4k7t758m" path="res://island_manager.gd" id="1_0xm2m"]
+[ext_resource type="PackedScene" uid="uid://cw2v1ady7pwif" path="res://island.tscn" id="1_ig7tw"]
+
 [node name="Main" type="Node3D" unique_id=840515144]
+
+[node name="IslandManager" type="Node" parent="." unique_id=147407782]
+script = ExtResource("1_0xm2m")
+
+[node name="Island" parent="IslandManager" unique_id=1855105647 instance=ExtResource("1_ig7tw")]
+
+[node name="NPCManager" type="Node" parent="." unique_id=837358867]
+
+[node name="EnvironmentManager" type="Node" parent="." unique_id=307312071]
+
+[node name="Camera3D" type="Camera3D" parent="EnvironmentManager" unique_id=1331901098]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4594054, 3.376021)
+
+[node name="OmniLight3D" type="OmniLight3D" parent="EnvironmentManager/Camera3D" unique_id=1817662544]
+omni_range = 86.405
