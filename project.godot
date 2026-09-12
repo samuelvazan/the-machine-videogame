@@ -13,7 +13,6 @@ config_version=5
 config/name="TheMachineOfficial"
 run/main_scene="uid://cs3mkyqym8kdr"
 config/features=PackedStringArray("4.7", "Mobile")
-config/icon="res://icon.svg"
 
 [display]
 
