@@ -11,7 +11,7 @@ script = ExtResource("1_0xm2m")
 
 [node name="Island" parent="IslandManager" unique_id=1855105647 instance=ExtResource("1_ig7tw")]
 
-[node name="NPCManager" type="Node" parent="." unique_id=837358867]
+[node name="EntityManager" type="Node" parent="." unique_id=837358867]
 
 [node name="EnvironmentManager" type="Node" parent="." unique_id=307312071]
 
