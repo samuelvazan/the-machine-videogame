@@ -5,7 +5,7 @@ var data: IslandData # The data this particular loaded island represents.
 @onready var grid_map: GridMap = $GridMap
 
 
-func setup(new_data: IslandData) -> void:
+func setup(new_data: IslandData) -> void: #Load up the entire island GridMap
 	data = new_data # Keep the data so future edits can also modify it.
 
 	grid_map.clear() # Start from an empty generic Island scene.

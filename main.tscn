@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://d3g1s4k7t758m" path="res://island_manager.gd" id="1_0xm2m"]
 [ext_resource type="PackedScene" uid="uid://cw2v1ady7pwif" path="res://island.tscn" id="1_ig7tw"]
+[ext_resource type="Script" uid="uid://dskexdt3achk1" path="res://camera3d.gd" id="3_h2yge"]
 
 [node name="Main" type="Node3D" unique_id=840515144]
 
@@ -16,6 +17,7 @@ script = ExtResource("1_0xm2m")
 
 [node name="Camera3D" type="Camera3D" parent="EnvironmentManager" unique_id=1331901098]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4594054, 3.376021)
+script = ExtResource("3_h2yge")
 
 [node name="OmniLight3D" type="OmniLight3D" parent="EnvironmentManager/Camera3D" unique_id=1817662544]
 omni_range = 86.405
