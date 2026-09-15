@@ -1,8 +1,8 @@
 class_name IslandManager
 extends Node
 
-const FIRST_PLATFORM_LINK_POINT := Vector3(5.0, 0.0, 5.0)
-const SECOND_PLATFORM_LINK_POINT := Vector3(-5.0, 0.0, -5.0)
+const FIRST_PLATFORM_LINK_POINT := Vector3(6.0, 0.0, 6.0)
+const SECOND_PLATFORM_LINK_POINT := Vector3(-4.0, 0.0, -4.0)
 const LINK_ROTATION_DEGREES := 120.0
 
 @export var island_scene: PackedScene # Assign island.tscn here.
