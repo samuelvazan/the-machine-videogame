@@ -99,7 +99,7 @@ func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS ov
 	var node_index := _find_node_index(Name)
 	var start_node := tree[node_index]
 	var nodeXYZ := Vector3.ZERO
-	var nodeRotation := Basis.IDENTITY
+	var nodeRotation := start_node.RotMatrix
 	if _render_distance(start_node, nodeXYZ, viewer) < MaxDist:
 		loaded_chunks.append(_loaded_chunk(start_node.Name, nodeXYZ, nodeRotation, start_node.DataIndex, start_node.Radius))
 	var queue: Array[Dictionary] = [{
@@ -188,7 +188,15 @@ func _ready() -> void: # This is where I'll create an initial structure for now.
 	add_tetrahedron_preset(root.Name)
 	add_tetrahedron_preset(root.children[0].Name)
 	add_tetrahedron_preset(root.children[1].Name)
-func _process(_delta) -> void:
+	add_tetrahedron_preset(root.children[0].children[0].Name)
+	add_tetrahedron_preset(root.children[0].children[0].children[0].Name)
+
+@export var rotation_speed_degrees := 20.0
+
+func _process(delta: float) -> void:
+	var rotation_step := Basis(Vector3.BACK, deg_to_rad(rotation_speed_degrees * delta))
+	for node in tree:
+		node.RotMatrix = (node.RotMatrix * rotation_step).orthonormalized()
 	BFS(
 		"root",
 		$"../EnvironmentManager/Camera3D".global_position,
