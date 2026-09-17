@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dpg5780vjo57q"
-path="res://.godot/imported/boundingsphere.glb-c44b8b9b839191d56662cdcd1692f45a.scn"
+uid="uid://dhrhhqq7ycatr"
+path="res://.godot/imported/sphere.glb-bc46cdcdddcee1da75bb22048195e195.scn"
 
 [deps]
 
-source_file="res://assets/boundingsphere.glb"
-dest_files=["res://.godot/imported/boundingsphere.glb-c44b8b9b839191d56662cdcd1692f45a.scn"]
+source_file="res://assets/sphere.glb"
+dest_files=["res://.godot/imported/sphere.glb-bc46cdcdddcee1da75bb22048195e195.scn"]
 
 [params]
 

@@ -101,7 +101,7 @@ func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS ov
 	var nodeXYZ := Vector3.ZERO
 	var nodeRotation := Basis.IDENTITY
 	if _render_distance(start_node, nodeXYZ, viewer) < MaxDist:
-		loaded_chunks.append(_loaded_chunk(start_node.Name, nodeXYZ, nodeRotation, start_node.DataIndex))
+		loaded_chunks.append(_loaded_chunk(start_node.Name, nodeXYZ, nodeRotation, start_node.DataIndex, start_node.Radius))
 	var queue: Array[Dictionary] = [{
 		"node": start_node,
 		"position": nodeXYZ,
@@ -121,7 +121,7 @@ func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS ov
 				var child_position := node_position + node_rotation * local_position
 				var child_rotation := node_rotation * child.RotMatrix
 				if _render_distance(child, child_position, viewer) < MaxDist:
-					loaded_chunks.append(_loaded_chunk(child.Name, child_position, child_rotation, child.DataIndex))
+					loaded_chunks.append(_loaded_chunk(child.Name, child_position, child_rotation, child.DataIndex, child.Radius))
 				if _ball_distance(child_position, child.Radius, viewer) < MaxDist:
 					queue.append({
 						"node": child,
@@ -166,17 +166,19 @@ func _sync_loaded_islands() -> void: # Actually SPAWN the nodes.
 			loaded_islands[chunk_name] = new_island
 		var island: Node3D = loaded_islands[chunk_name]
 		island.global_transform = Transform3D(chunk["rotation"], chunk["position"])
+		island.scale = Vector3.ONE * chunk["Radius"]
 	for chunk_name in loaded_islands.keys():
 		if not requested_islands.has(chunk_name):
 			var island_to_remove: Node3D = loaded_islands[chunk_name]
 			island_to_remove.queue_free()
 			loaded_islands.erase(chunk_name)
-func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index: int) -> Dictionary: #compact chunk data into a dict, making it suitable for adding to loaded_chunks[] list
+func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index: int, radius: float) -> Dictionary: #compact chunk data into a dict, making it suitable for adding to loaded_chunks[] list
 	return {
 		"Name": Name,
 		"position": position,
 		"rotation": rotation,
 		"DataIndex": data_index,
+		"Radius": radius,
 	}
 
 
@@ -186,7 +188,7 @@ func _ready() -> void: # This is where I'll create an initial structure for now.
 	add_tetrahedron_preset(root.Name)
 	add_tetrahedron_preset(root.children[0].Name)
 	add_tetrahedron_preset(root.children[1].Name)
-func _process(_delta: float) -> void:
+func _process(_delta) -> void:
 	BFS(
 		"root",
 		$"../EnvironmentManager/Camera3D".global_position,

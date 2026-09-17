@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cw2v1ady7pwif"]
 
-[ext_resource type="PackedScene" uid="uid://dpg5780vjo57q" path="res://assets/boundingsphere.glb" id="1_0iamf"]
+[ext_resource type="PackedScene" uid="uid://dhrhhqq7ycatr" path="res://assets/sphere.glb" id="1_0iamf"]
 
 [node name="Island" type="Node3D" unique_id=1855105647]
 
-[node name="boundingsphere" parent="." unique_id=1465550793 instance=ExtResource("1_0iamf")]
+[node name="sphere" parent="." unique_id=1937516508 instance=ExtResource("1_0iamf")]
