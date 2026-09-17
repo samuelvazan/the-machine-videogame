@@ -1,0 +1,51 @@
+I want you to add a script to island_manager.gd. Follow instructions exactly
+(if something seems wrong, tell me before you implement and ask what to do)
+do not add safety checks, and when creating comments, put them on the same
+line as the code, not above on a seperate line.
+ 
+Create a tree. Each node contains its:
+  - Name (changable)
+  - Type (changable)
+  - Parentable (changable, determines if it can become a parent)
+  - DataIndex (changable, determines a special ID for each node)
+  - Radius (changable. Each node is a 3D ball with a radius)
+  - RotMatrix (each node has a rotation relative to its parent)
+  - ChildType (changable. Determines what preset its children use)
+
+Create a function 'add_tetrahedron_preset(Name)'. That function does this:
+  - Locate the index of the node with that name.
+  - If its type equals 'tetrahedron' and it is parentable then:
+    - Make it unparantable.
+    - Make its ChildType 'tetrahedron'.
+    - Place 4 nodes into it:
+      - Type: 'tetrahedron'
+      - Name: 'some deterministic ID'
+      - Parentable: True
+      - DataIndex, RotMatrix can be just set to some default value, as they're controlled in a seperate script. (same for core)
+      - Radius: should be appropriately scaled based on the radius descriptions below (same for core)
+    - Place 1 more node into it:
+      - Type: 'core'
+      - Name: 'some deterministic ID'
+      - Parentable: False
+Create a function 'delete_tetrahedron_preset(Name)'. That function should delete a preset, if there is one, and all the children of that preset, etc etc until the whole branch is deleted.
+
+Then, create a function called BFS(Name, viewer, MaxDist):
+The function should go over the entire graph using BFS. However, it has some important modifications. It works like this:
+
+Define 'nodeXYZ' equal to 0 at start.
+Define 'nodeRotation' which represents 3D absolute rotation
+Store every node you go over in 'loaded_chunks' list. It should contain position, rotation and DataIndex
+Start at node 'Name'. Next:
+  - For each of its children:
+    - Continue BFS from that node if:
+      - Distance between the closest point on a BALL centred at nodeX, nodeY, with a radius 'Radius' and viewer is smaller than MaxDist.
+    - Render that node if:
+      Distance between the closest point on a SPHERE centred at nodeX, nodeY, with a radius 'Radius' and viewer is smaller than MaxDist.
+  
+  - For each of its children that it plans to run BFS on:
+    - If the ChildType is equal to 'tetrahedron' then:
+    	- Assume its 5 children are:
+    	  - 0,0,-0.550509375 ; 0.519025,0,0.183503125 ; -0.2595125,0.449490625,0.183503125 ; -0.2595125,-0.449490625,0.183503125 ; 0,0,0 positions
+    	  - 0,446875 ; 0,446875 ; 0,446875 ; 0,446875; 0.1 radiuses
+    	The positions are relative to the original sphere radius. Ie., if the sphere radius = 1, they stay the same, if sphere radius = 2, they get scaled by 2. They are also local to the parent's position.
+    	_Rotate_ every child by the 'nodeRotation' of its parent around the parent's origin. Then, rotate each child around its origin based on its RotMatrix. This becomes the child's nodeRotation.

@@ -1,97 +1,146 @@
 class_name IslandManager
 extends Node
 
-const FIRST_PLATFORM_LINK_POINT := Vector3(6.0, 0.0, 6.0)
-const SECOND_PLATFORM_LINK_POINT := Vector3(-4.0, 0.0, -4.0)
-const LINK_ROTATION_DEGREES := 120.0
+const TETRAHEDRON_POSITIONS := [
+	Vector3(0.0, 0.0, -0.550509375),
+	Vector3(0.519025, 0.0, 0.183503125),
+	Vector3(-0.2595125, 0.449490625, 0.183503125),
+	Vector3(-0.2595125, -0.449490625, 0.183503125),
+	Vector3.ZERO,
+]
+const TETRAHEDRON_RADIUS_SCALE := 0.446875
+const CORE_RADIUS_SCALE := 0.1
 
-@export var island_scene: PackedScene # Assign island.tscn here.
-@export var islands: Array[IslandData] = [] # All islands that exist in this world.
+class TreeNode:
+	var Name: String
+	var Type: String
+	var Parentable: bool
+	var DataIndex: int
+	var Radius: float
+	var RotMatrix: Basis
+	var ChildType: String
+	var children: Array[TreeNode]
 
-var data_by_id: Dictionary = {} # Lets us quickly find IslandData from an ID.
-var loaded: Dictionary = {} # Contains only islands that currently exist as Nodes.
-var link_pivot: Node3D
-var linked_platform: Island
-var animation_time := 0.0
+	func _init(
+		new_name: String,
+		new_type: String,
+		new_parentable: bool,
+		new_data_index: int,
+		new_radius: float,
+		new_rot_matrix: Basis,
+		new_child_type: String = ""
+	) -> void:
+		Name = new_name
+		Type = new_type
+		Parentable = new_parentable
+		DataIndex = new_data_index
+		Radius = new_radius
+		RotMatrix = new_rot_matrix
+		ChildType = new_child_type
+		children = []
 
+@export var island_scene: PackedScene
 
-func _ready() -> void:
-	for data in islands:
-		data_by_id[data.id] = data # Build the fast ID lookup once.
-
-	spawn_linked_platforms()
-
-
-func _process(delta: float) -> void:
-	if link_pivot == null:
-		return
-
-	animation_time += delta
-	var angle_degrees := sin(animation_time) * LINK_ROTATION_DEGREES
-	link_pivot.rotation.y = deg_to_rad(angle_degrees)
-
-
-func spawn_linked_platforms() -> void:
-	if island_scene == null:
-		push_error("IslandManager needs an Island Scene before it can spawn platforms.")
-		return
-
-	# Keep using a platform already placed in the scene as the first one. This
-	# also makes the manager work in scenes without one by creating it here.
-	var first_platform := get_node_or_null("Island") as Island
-	if first_platform == null:
-		first_platform = _spawn_platform(self, "Island")
-	else:
-		first_platform.setup()
-
-	# The pivot is the first platform's connection point. The second platform
-	# is offset so its own connection point sits exactly on that same pivot.
-	link_pivot = Node3D.new()
-	link_pivot.name = "LinkPivot"
-	first_platform.add_child(link_pivot)
-	link_pivot.position = FIRST_PLATFORM_LINK_POINT
-
-	linked_platform = _spawn_platform(link_pivot, "LinkedIsland")
-	linked_platform.position = -SECOND_PLATFORM_LINK_POINT
+var tree: Array[TreeNode] = []
+var loaded_chunks: Array[Dictionary] = []
+var next_node_id := 0
 
 
-func _spawn_platform(parent: Node, platform_name: String) -> Island:
-	var platform := island_scene.instantiate() as Island
-	platform.name = platform_name
-	parent.add_child(platform) # Add it first so its GridMap is ready.
-	platform.setup()
-	return platform
+func add_tetrahedron_preset(Name: String) -> void:
+	var node_index := _find_node_index(Name)
+	var parent := tree[node_index]
+	if parent.Type == "tetrahedron" and parent.Parentable:
+		parent.Parentable = false
+		parent.ChildType = "tetrahedron"
+		for _child_index in range(4):
+			var child := TreeNode.new(
+				_next_node_name(),
+				"tetrahedron",
+				true,
+				-1,
+				parent.Radius * TETRAHEDRON_RADIUS_SCALE,
+				Basis.IDENTITY
+			)
+			parent.children.append(child)
+			tree.append(child)
+		var core := TreeNode.new(
+			_next_node_name(),
+			"core",
+			false,
+			-1,
+			parent.Radius * CORE_RADIUS_SCALE,
+			Basis.IDENTITY
+		)
+		parent.children.append(core)
+		tree.append(core)
 
 
-func spawn_island(id: int) -> Island:
-	if loaded.has(id):
-		return loaded[id] # Don't spawn the same island twice.
-
-	if not data_by_id.has(id):
-		push_error("Island " + str(id) + " does not exist.")
-		return null
-
-	var island := island_scene.instantiate() as Island # Create the generic island.tscn.
-	add_child(island) # Add it first so its GridMap is ready.
-	island.setup(data_by_id[id]) # Give it the data describing which island it is.
-
-	loaded[id] = island
-	return island
+func delete_tetrahedron_preset(Name: String) -> void:
+	var node_index := _find_node_index(Name)
+	var parent := tree[node_index]
+	if parent.ChildType == "tetrahedron":
+		_delete_descendants(parent)
+		parent.Parentable = true
+		parent.ChildType = ""
 
 
-func despawn_island(id: int) -> void:
-	if not loaded.has(id):
-		return
+func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void:
+	loaded_chunks.clear()
+	var node_index := _find_node_index(Name)
+	var start_node := tree[node_index]
+	var nodeXYZ := Vector3.ZERO
+	var nodeRotation := Basis.IDENTITY
+	if _sphere_distance(nodeXYZ, start_node.Radius, viewer) < MaxDist:
+		loaded_chunks.append(_loaded_chunk(nodeXYZ, nodeRotation, start_node.DataIndex))
+	var queue: Array[Dictionary] = [{
+		"node": start_node,
+		"position": nodeXYZ,
+		"rotation": nodeRotation,
+	}]
+	var queue_index := 0
+	while queue_index < queue.size():
+		var current := queue[queue_index]
+		queue_index += 1
+		var node: TreeNode = current["node"]
+		var node_position: Vector3 = current["position"]
+		var node_rotation: Basis = current["rotation"]
+		if node.ChildType == "tetrahedron":
+			for child_index in range(node.children.size()):
+				var child := node.children[child_index]
+				var local_position: Vector3 = TETRAHEDRON_POSITIONS[child_index] * node.Radius
+				var child_position := node_position + node_rotation * local_position
+				var child_rotation := node_rotation * child.RotMatrix
+				if _sphere_distance(child_position, child.Radius, viewer) < MaxDist:
+					loaded_chunks.append(_loaded_chunk(child_position, child_rotation, child.DataIndex))
+				if _ball_distance(child_position, child.Radius, viewer) < MaxDist:
+					queue.append({
+						"node": child,
+						"position": child_position,
+						"rotation": child_rotation,
+					})
 
-	loaded[id].queue_free() # Remove the visual/physical island, but keep its IslandData.
-	loaded.erase(id)
 
-
-func set_cell(id: int, position: Vector3i, tile: int) -> void:
-	if not data_by_id.has(id):
-		return
-
-	if loaded.has(id):
-		loaded[id].set_cell(position, tile) # Loaded Island handles both data and visuals.
-	else:
-		data_by_id[id].set_cell(position, tile) # Unloaded Island only needs its data changed.
+func _find_node_index(Name: String) -> int: # finds the node index based on the Name.
+	for node_index in range(tree.size()):
+		if tree[node_index].Name == Name:
+			return node_index
+	return -1
+func _next_node_name() -> String: # 
+	var generated_name := "n" + str(next_node_id)
+	next_node_id += 1
+	return generated_name
+func _delete_descendants(node: TreeNode) -> void:
+	for child in node.children:
+		_delete_descendants(child)
+		tree.erase(child)
+	node.children.clear()
+func _ball_distance(position: Vector3, radius: float, viewer: Vector3) -> float:
+	return maxf(position.distance_to(viewer) - radius, 0.0)
+func _sphere_distance(position: Vector3, radius: float, viewer: Vector3) -> float:
+	return absf(position.distance_to(viewer) - radius)
+func _loaded_chunk(position: Vector3, rotation: Basis, data_index: int) -> Dictionary:
+	return {
+		"position": position,
+		"rotation": rotation,
+		"DataIndex": data_index,
+	}
