@@ -12,4 +12,3 @@ func _process(delta):
 	# Rotation.
 	rotation.x += Input.get_axis("camRdown", "camRup") * rotate_speed * delta
 	rotation.y += Input.get_axis("camRright", "camRleft") * rotate_speed * delta
-	rotation.z += Input.get_axis("camRbackward", "camRforward") * rotate_speed * delta
