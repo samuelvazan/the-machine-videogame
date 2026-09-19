@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="IslandData" load_steps=3 format=3]
+
+[ext_resource type="Script" uid="uid://b66bkow5cvfpx" path="res://island_data.gd" id="1_data"]
+[ext_resource type="PackedScene" uid="uid://q5s06frn8ejb" path="res://assets/fullsphere.glb" id="2_architecture"]
+
+[resource]
+script = ExtResource("1_data")
+island_type = "filled_sphere"
+architecture = ExtResource("2_architecture")
+data = {
+"darkness": 0.15
+}

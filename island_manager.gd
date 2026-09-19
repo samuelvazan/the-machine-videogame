@@ -50,7 +50,10 @@ class TreeNode:
 var tree: Array[TreeNode] = []
 var loaded_chunks: Array[Dictionary] = []
 var loaded_islands: Dictionary = {}
+var loaded_island_data: Dictionary = {}
+var island_data_repository := IslandDataRepository.new()
 var next_node_id := 0
+var next_data_idx := 0
 
 
 func add_tetrahedron_preset(Name: String) -> void:
@@ -141,6 +144,44 @@ func modify_data_idx(Name: String, data_idx: int) -> void:
 	if node_index == -1:
 		return
 	tree[node_index].DataIndex = data_idx
+func create_island_data(data: IslandData) -> int:
+	while island_data_repository.exists(next_data_idx):
+		next_data_idx += 1
+	var data_idx := next_data_idx
+	var error := island_data_repository.create(data_idx, data)
+	if error != OK:
+		return -1
+	loaded_island_data[data_idx] = data
+	next_data_idx += 1
+	return data_idx
+func load_island_data(data_idx: int) -> IslandData:
+	if loaded_island_data.has(data_idx):
+		return loaded_island_data[data_idx]
+	var data := island_data_repository.load(data_idx)
+	if data != null:
+		loaded_island_data[data_idx] = data
+	return data
+func save_island_data(data_idx: int) -> Error:
+	if not loaded_island_data.has(data_idx):
+		return ERR_INVALID_PARAMETER
+	return island_data_repository.save(data_idx, loaded_island_data[data_idx])
+func save_loaded_island(Name: String) -> Error:
+	if not loaded_islands.has(Name):
+		return ERR_INVALID_PARAMETER
+	var island := loaded_islands[Name] as Island
+	if island.data == null:
+		return ERR_INVALID_PARAMETER
+	var packed_scene := island.pack_architecture()
+	if packed_scene == null:
+		return ERR_CANT_CREATE
+	island.data.architecture = packed_scene
+	loaded_island_data[island.data_idx] = island.data
+	return save_island_data(island.data_idx)
+func delete_island_data(data_idx: int) -> Error:
+	var error := island_data_repository.delete(data_idx)
+	if error == OK:
+		loaded_island_data.erase(data_idx)
+	return error
 func _next_node_name() -> String: # generate a unique node Name. For now: n0, n1, n2, n3, ...
 	var generated_name := "n" + str(next_node_id)
 	next_node_id += 1
@@ -167,6 +208,7 @@ func _sync_loaded_islands() -> void: # Actually SPAWN the nodes.
 			var new_island := island_scene.instantiate() as Island
 			new_island.name = chunk_name
 			new_island.data_idx = chunk["DataIndex"]
+			new_island.island_manager = self
 			add_child(new_island)
 			loaded_islands[chunk_name] = new_island
 		var island: Node3D = loaded_islands[chunk_name]
