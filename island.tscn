@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://cw2v1ady7pwif"]
 
-[ext_resource type="PackedScene" uid="uid://dhrhhqq7ycatr" path="res://assets/sphere.glb" id="1_0iamf"]
+[ext_resource type="Script" uid="uid://wuv3fnmgnb1c" path="res://island.gd" id="1_v6y4a"]
 
 [node name="Island" type="Node3D" unique_id=1855105647]
-
-[node name="sphere" parent="." unique_id=1937516508 instance=ExtResource("1_0iamf")]
+script = ExtResource("1_v6y4a")

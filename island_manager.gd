@@ -136,6 +136,11 @@ func _find_node_index(Name: String) -> int: # finds the node index based on the 
 		if tree[node_index].Name == Name:
 			return node_index
 	return -1
+func modify_data_idx(Name: String, data_idx: int) -> void:
+	var node_index := _find_node_index(Name)
+	if node_index == -1:
+		return
+	tree[node_index].DataIndex = data_idx
 func _next_node_name() -> String: # generate a unique node Name. For now: n0, n1, n2, n3, ...
 	var generated_name := "n" + str(next_node_id)
 	next_node_id += 1
@@ -159,9 +164,9 @@ func _sync_loaded_islands() -> void: # Actually SPAWN the nodes.
 		var chunk_name: String = chunk["Name"]
 		requested_islands[chunk_name] = true
 		if not loaded_islands.has(chunk_name):
-			var new_island := island_scene.instantiate() as Node3D
+			var new_island := island_scene.instantiate() as Island
 			new_island.name = chunk_name
-			new_island.set_meta("DataIndex", chunk["DataIndex"])
+			new_island.data_idx = chunk["DataIndex"]
 			add_child(new_island)
 			loaded_islands[chunk_name] = new_island
 		var island: Node3D = loaded_islands[chunk_name]
@@ -186,12 +191,13 @@ func _ready() -> void: # This is where I'll create an initial structure for now.
 	var root := TreeNode.new("root", "tetrahedron", true, 0, 10.0, Basis.IDENTITY, "", true)
 	tree.append(root)
 	add_tetrahedron_preset(root.Name)
-	add_tetrahedron_preset(root.children[0].Name)
-	add_tetrahedron_preset(root.children[1].Name)
-	add_tetrahedron_preset(root.children[0].children[0].Name)
-	add_tetrahedron_preset(root.children[0].children[0].children[0].Name)
+	modify_data_idx(root.children[0].Name, 1)
+	modify_data_idx(root.children[1].Name, 1)
+	modify_data_idx(root.children[2].Name, 1)
+	add_tetrahedron_preset(root.children[3].Name)
+	modify_data_idx(root.children[3].children[0].Name, 1)
 
-@export var rotation_speed_degrees := 20.0
+@export var rotation_speed_degrees := 5.0
 
 func _process(delta: float) -> void:
 	var rotation_step := Basis(Vector3.BACK, deg_to_rad(rotation_speed_degrees * delta))

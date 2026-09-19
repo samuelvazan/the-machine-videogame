@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://dkvcer2lay7qn"]
+
+[ext_resource type="PackedScene" uid="uid://dhrhhqq7ycatr" path="res://assets/sphere.glb" id="1_8pulh"]
+
+[node name="sphere" unique_id=1937516508 instance=ExtResource("1_8pulh")]
