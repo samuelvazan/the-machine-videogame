@@ -1,6 +1,16 @@
-[gd_scene format=3 uid="uid://cw2v1ady7pwif"]
+[gd_scene load_steps=3 format=3 uid="uid://cw2v1ady7pwif"]
 
 [ext_resource type="Script" uid="uid://wuv3fnmgnb1c" path="res://island.gd" id="1_v6y4a"]
 
+[sub_resource type="SphereShape3D" id="SphereShape3D_selection"]
+radius = 1.0
+
 [node name="Island" type="Node3D" unique_id=1855105647]
 script = ExtResource("1_v6y4a")
+
+[node name="SelectionArea" type="Area3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SelectionArea"]
+shape = SubResource("SphereShape3D_selection")
+
+[connection signal="input_event" from="SelectionArea" to="." method="_on_selection_area_input_event"]

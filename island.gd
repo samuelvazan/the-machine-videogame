@@ -8,8 +8,11 @@
 class_name Island
 extends Node3D
 
+signal clicked(Name: String)
+
 const SPHERE_SCENE := preload("res://assets/sphere.glb")
 
+var tree_node_name: String
 var data_idx: int = -1
 var data: IslandData
 var island_manager: IslandManager
@@ -27,6 +30,17 @@ func _ready() -> void:
 	add_child(architecture)
 	if data.data.has("darkness"):
 		_apply_darkness(architecture, float(data.data["darkness"]))
+
+
+func _on_selection_area_input_event(
+	_camera: Node,
+	event: InputEvent,
+	_event_position: Vector3,
+	_normal: Vector3,
+	_shape_idx: int
+) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		clicked.emit(tree_node_name)
 
 
 func pack_architecture() -> PackedScene:

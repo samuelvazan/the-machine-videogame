@@ -99,6 +99,17 @@ func delete_tetrahedron_preset(Name: String) -> void:
 		_delete_descendants(parent)
 		parent.Parentable = true
 		parent.ChildType = ""
+func toggle_tetrahedron_preset(Name: String) -> void:
+	var node_index := _find_node_index(Name)
+	if node_index == -1:
+		return
+	var node := tree[node_index]
+	if node.ChildType == "tetrahedron":
+		delete_tetrahedron_preset(Name)
+	elif node.Type == "tetrahedron" and node.Parentable:
+		add_tetrahedron_preset(Name)
+func _on_island_clicked(Name: String) -> void:
+	toggle_tetrahedron_preset(Name)
 
 
 func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS over all the nodes and register the ones that are visible.
@@ -137,7 +148,7 @@ func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS ov
 					})
 	_sync_loaded_islands()
 
-
+# Helper functions for island_manager.gd:
 func _find_node_index(Name: String) -> int: # finds the node index based on the Name.
 	for node_index in range(tree.size()):
 		if tree[node_index].Name == Name:
@@ -186,6 +197,7 @@ func delete_island_data(data_idx: int) -> Error:
 	if error == OK:
 		loaded_island_data.erase(data_idx)
 	return error
+
 func _next_node_name() -> String: # generate a unique node Name. For now: n0, n1, n2, n3, ...
 	var generated_name := "n" + str(next_node_id)
 	next_node_id += 1
@@ -211,8 +223,10 @@ func _sync_loaded_islands() -> void: # Actually SPAWN the nodes.
 		if not loaded_islands.has(chunk_name):
 			var new_island := island_scene.instantiate() as Island
 			new_island.name = chunk_name
+			new_island.tree_node_name = chunk_name
 			new_island.data_idx = chunk["DataIndex"]
 			new_island.island_manager = self
+			new_island.clicked.connect(_on_island_clicked)
 			add_child(new_island)
 			loaded_islands[chunk_name] = new_island
 		var island: Node3D = loaded_islands[chunk_name]
@@ -234,14 +248,14 @@ func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index:
 
 
 func _ready() -> void: # This is where I'll create an initial structure for now.
-	var root := TreeNode.new("root", "tetrahedron", true, 0, 10.0, Basis.IDENTITY, "", true)
+	var root := TreeNode.new("root", "tetrahedron", true, -1, 50.0, Basis.IDENTITY, "", true)
 	tree.append(root)
 	add_tetrahedron_preset(root.Name)
-	modify_data_idx(root.children[0].Name, 1)
-	modify_data_idx(root.children[1].Name, 1)
-	modify_data_idx(root.children[2].Name, 1)
+	#modify_data_idx(root.children[0].Name, 1)
+	#modify_data_idx(root.children[1].Name, 1)
+	#modify_data_idx(root.children[2].Name, 1)
 	add_tetrahedron_preset(root.children[3].Name)
-	modify_data_idx(root.children[3].children[0].Name, 1)
+	#modify_data_idx(root.children[3].children[0].Name, 1)
 
 @export var rotation_speed_degrees := 5.0
 
@@ -252,5 +266,5 @@ func _process(delta: float) -> void:
 	BFS(
 		"root",
 		$"../EnvironmentManager/Camera3D".global_position,
-		20.0
+		200.0
 	)
