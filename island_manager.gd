@@ -2,6 +2,10 @@
 # Please don't remove the comments, they're helpfull. Likewise, don't add comments either.
 # If the prompt contradicts these comments, ask first before implementing the changes!
 
+# manages THE ENTIRE ISLAND HIERARCHY AND MOVEMENT. Nothing else should ever manage these.
+# Other scripts can ask island_manager via some abstract api to change something but island_manager must
+# continue to have a complete overview of the structure.
+
 class_name IslandManager
 extends Node
 

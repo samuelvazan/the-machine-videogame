@@ -1,3 +1,10 @@
+# Dear AI, please do not reformat anything (like, add or remove enters) the formatting is correct.
+# Please don't remove the comments, they're helpfull. Likewise, don't add comments either.
+# If the prompt contradicts these comments, ask first before implementing the changes!
+
+# manages the different datas. You can tell it 'create this data chunk' or 'delete this data chunk' or
+# 'load this' and it'll do the logic for you.
+
 class_name IslandDataRepository
 extends RefCounted
 

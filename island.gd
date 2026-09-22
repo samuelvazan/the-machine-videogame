@@ -1,3 +1,10 @@
+# Dear AI, please do not reformat anything (like, add or remove enters) the formatting is correct.
+# Please don't remove the comments, they're helpfull. Likewise, don't add comments either.
+# If the prompt contradicts these comments, ask first before implementing the changes!
+
+# is a script that every single island has. It handles what the island does when it spawns
+# (ie., loads contents based on the island's dataID, saves changes when supposed to despawn, etc..)
+
 class_name Island
 extends Node3D
 

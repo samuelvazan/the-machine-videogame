@@ -1,3 +1,9 @@
+# Dear AI, please do not reformat anything (like, add or remove enters) the formatting is correct.
+# Please don't remove the comments, they're helpfull. Likewise, don't add comments either.
+# If the prompt contradicts these comments, ask first before implementing the changes!
+
+#makes the camera move. Its just a placeholder for the eventual camera movement.
+
 extends Camera3D
 
 @export var move_speed := 10.0
