@@ -60,6 +60,7 @@ var next_node_id := 0
 var next_data_idx := 0
 
 
+# API - ish functions. Can get used by other scripts safely. (or should, at least. double check)
 func add_tetrahedron_preset(Name: String) -> void:
 	var node_index := _find_node_index(Name)
 	var parent := tree[node_index]
@@ -198,6 +199,7 @@ func delete_island_data(data_idx: int) -> Error:
 		loaded_island_data.erase(data_idx)
 	return error
 
+# The helper functions for helper functions.
 func _next_node_name() -> String: # generate a unique node Name. For now: n0, n1, n2, n3, ...
 	var generated_name := "n" + str(next_node_id)
 	next_node_id += 1
@@ -246,7 +248,7 @@ func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index:
 		"Radius": radius,
 	}
 
-
+# Runs on intialization.
 func _ready() -> void: # This is where I'll create an initial structure for now.
 	var root := TreeNode.new("root", "tetrahedron", true, -1, 50.0, Basis.IDENTITY, "", true)
 	tree.append(root)
@@ -259,6 +261,7 @@ func _ready() -> void: # This is where I'll create an initial structure for now.
 
 @export var rotation_speed_degrees := 5.0
 
+# Runs in a loop, forever, until terminated. It should never get terminated.
 func _process(delta: float) -> void:
 	var rotation_step := Basis(Vector3.BACK, deg_to_rad(rotation_speed_degrees * delta))
 	for node in tree:
