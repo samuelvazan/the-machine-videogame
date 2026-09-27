@@ -54,8 +54,10 @@ class TreeNode:
 var tree: Array[TreeNode] = []
 var loaded_chunks: Array[Dictionary] = []
 var loaded_islands: Dictionary = {}
+var loaded_island_data: Dictionary = {}
 var island_data_repository := IslandDataRepository.new()
 var next_node_id := 0
+var next_data_idx := 0
 
 
 # API - ish functions. Can get used by other scripts safely. (or should, at least. double check)
@@ -97,7 +99,6 @@ func delete_tetrahedron_preset(Name: String) -> void:
 	if parent.ChildType == "tetrahedron":
 		_delete_descendants(parent)
 		parent.Parentable = true
-		parent.filled = true
 		parent.ChildType = ""
 func toggle_tetrahedron_preset(Name: String) -> void:
 	var node_index := _find_node_index(Name)
@@ -159,6 +160,44 @@ func modify_data_idx(Name: String, data_idx: int) -> void:
 	if node_index == -1:
 		return
 	tree[node_index].DataIndex = data_idx
+func create_island_data(data: IslandData) -> int:
+	while island_data_repository.exists(next_data_idx):
+		next_data_idx += 1
+	var data_idx := next_data_idx
+	var error := island_data_repository.create(data_idx, data)
+	if error != OK:
+		return -1
+	loaded_island_data[data_idx] = data
+	next_data_idx += 1
+	return data_idx
+func load_island_data(data_idx: int) -> IslandData:
+	if loaded_island_data.has(data_idx):
+		return loaded_island_data[data_idx]
+	var data := island_data_repository.load(data_idx)
+	if data != null:
+		loaded_island_data[data_idx] = data
+	return data
+func save_island_data(data_idx: int) -> Error:
+	if not loaded_island_data.has(data_idx):
+		return ERR_INVALID_PARAMETER
+	return island_data_repository.save(data_idx, loaded_island_data[data_idx])
+func save_loaded_island(Name: String) -> Error:
+	if not loaded_islands.has(Name):
+		return ERR_INVALID_PARAMETER
+	var island := loaded_islands[Name] as Island
+	if island.data == null:
+		return ERR_INVALID_PARAMETER
+	var packed_scene := island.pack_architecture()
+	if packed_scene == null:
+		return ERR_CANT_CREATE
+	island.data.architecture = packed_scene
+	loaded_island_data[island.data_idx] = island.data
+	return save_island_data(island.data_idx)
+func delete_island_data(data_idx: int) -> Error:
+	var error := island_data_repository.delete(data_idx)
+	if error == OK:
+		loaded_island_data.erase(data_idx)
+	return error
 
 # The helper functions for helper functions.
 func _next_node_name() -> String: # generate a unique node Name. For now: n0, n1, n2, n3, ...
@@ -188,7 +227,7 @@ func _sync_loaded_islands() -> void: # Actually SPAWN the nodes.
 			new_island.name = chunk_name
 			new_island.tree_node_name = chunk_name
 			new_island.data_idx = chunk["DataIndex"]
-			new_island.island_data_repository = island_data_repository
+			new_island.island_manager = self
 			new_island.clicked.connect(_on_island_clicked)
 			add_child(new_island)
 			loaded_islands[chunk_name] = new_island
@@ -197,16 +236,10 @@ func _sync_loaded_islands() -> void: # Actually SPAWN the nodes.
 		island.scale = Vector3.ONE * chunk["Radius"]
 	for chunk_name in loaded_islands.keys():
 		if not requested_islands.has(chunk_name):
-			var island_to_remove: Island = loaded_islands[chunk_name]
-			var error := island_to_remove.despawn()
-			if error != OK:
-				push_error("Could not save island %s: %s" % [chunk_name, error_string(error)])
-				continue
+			var island_to_remove: Node3D = loaded_islands[chunk_name]
 			island_to_remove.queue_free()
 			loaded_islands.erase(chunk_name)
 func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index: int, radius: float) -> Dictionary: #compact chunk data into a dict, making it suitable for adding to loaded_chunks[] list
-	if data_index == -1:
-		data_index = 0 if Name == "root" else int(Name.substr(1)) + 1
 	return {
 		"Name": Name,
 		"position": position,

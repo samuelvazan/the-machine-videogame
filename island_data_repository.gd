@@ -10,36 +10,33 @@ extends RefCounted
 
 const BUILT_IN_DATA_DIRECTORY := "res://data/islands"
 const USER_DATA_DIRECTORY := "user://islands"
-const EMPTY_ISLAND_SCENE := preload("res://island_contents.tscn")
 
 
-func load(data_idx: int) -> PackedScene:
-	if data_idx < 0:
-		return null
+func create(data_idx: int, data: IslandData) -> Error:
+	if data_idx < 0 or data == null:
+		return ERR_INVALID_PARAMETER
+	if exists(data_idx):
+		return ERR_ALREADY_EXISTS
+	return save(data_idx, data)
+
+
+func load(data_idx: int) -> IslandData:
 	var user_path := _user_data_path(data_idx)
 	if ResourceLoader.exists(user_path):
-		return ResourceLoader.load(user_path, "PackedScene", ResourceLoader.CACHE_MODE_IGNORE) as PackedScene
+		return ResourceLoader.load(user_path) as IslandData
 	var built_in_path := _built_in_data_path(data_idx)
 	if ResourceLoader.exists(built_in_path):
-		return ResourceLoader.load(built_in_path, "PackedScene") as PackedScene
-	var contents := EMPTY_ISLAND_SCENE.instantiate()
-	var packed_scene := PackedScene.new()
-	if packed_scene.pack(contents) != OK:
-		contents.free()
-		return null
-	contents.free()
-	if save(data_idx, packed_scene) != OK:
-		return null
-	return packed_scene
+		return ResourceLoader.load(built_in_path) as IslandData
+	return null
 
 
-func save(data_idx: int, packed_scene: PackedScene) -> Error:
-	if data_idx < 0 or packed_scene == null:
+func save(data_idx: int, data: IslandData) -> Error:
+	if data_idx < 0 or data == null:
 		return ERR_INVALID_PARAMETER
 	var error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(USER_DATA_DIRECTORY))
 	if error != OK:
 		return error
-	return ResourceSaver.save(packed_scene, _user_data_path(data_idx))
+	return ResourceSaver.save(data, _user_data_path(data_idx), ResourceSaver.FLAG_COMPRESS)
 
 
 func delete(data_idx: int) -> Error:
@@ -54,8 +51,8 @@ func exists(data_idx: int) -> bool:
 
 
 func _user_data_path(data_idx: int) -> String:
-	return "%s/data_%d.tscn" % [USER_DATA_DIRECTORY, data_idx]
+	return "%s/data_%d.res" % [USER_DATA_DIRECTORY, data_idx]
 
 
 func _built_in_data_path(data_idx: int) -> String:
-	return "%s/data_%d.tscn" % [BUILT_IN_DATA_DIRECTORY, data_idx]
+	return "%s/data_%d.tres" % [BUILT_IN_DATA_DIRECTORY, data_idx]
