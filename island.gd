@@ -10,26 +10,37 @@ extends Node3D
 
 signal clicked(Name: String)
 
-const SPHERE_SCENE := preload("res://assets/sphere.glb")
+const TILE_LIBRARY := preload("res://assets/tilemap/meshlibrary/tilesv1.tres")
 
 var tree_node_name: String
 var data_idx: int = -1
-var data: IslandData
-var island_manager: IslandManager
-var architecture: Node
+var island_data_repository: IslandDataRepository
+var contents: Node3D
+var saved_on_despawn := false
 
 
 func _ready() -> void:
-	if data_idx == -1:
-		add_child(SPHERE_SCENE.instantiate())
+	var packed_scene := island_data_repository.load(data_idx)
+	if packed_scene == null:
+		push_error("Could not load island %s" % tree_node_name)
 		return
-	data = island_manager.load_island_data(data_idx)
-	if data == null or data.architecture == null:
+	contents = packed_scene.instantiate() as Node3D
+	if contents == null:
+		push_error("Island %s does not contain a Node3D root" % tree_node_name)
 		return
-	architecture = data.architecture.instantiate()
-	add_child(architecture)
-	if data.data.has("darkness"):
-		_apply_darkness(architecture, float(data.data["darkness"]))
+	add_child(contents)
+	var selection_area := contents.get_node_or_null("SelectionArea") as Area3D
+	if selection_area != null:
+		selection_area.input_event.connect(_on_selection_area_input_event)
+	else:
+		push_error("Island %s has no SelectionArea" % tree_node_name)
+
+
+func _exit_tree() -> void:
+	if contents != null and not saved_on_despawn:
+		var error := despawn()
+		if error != OK:
+			push_error("Could not save island %s: %s" % [tree_node_name, error_string(error)])
 
 
 func _on_selection_area_input_event(
@@ -40,30 +51,34 @@ func _on_selection_area_input_event(
 	_shape_idx: int
 ) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		clicked.emit(tree_node_name)
+		if Input.is_key_pressed(KEY_T):
+			toggle_tilemap()
+		else:
+			clicked.emit(tree_node_name)
 
 
-func pack_architecture() -> PackedScene:
-	if architecture == null:
-		return null
-	_set_owner_recursive(architecture, architecture)
+func toggle_tilemap() -> void:
+	var tilemap := contents.get_node_or_null("TileMap") as GridMap
+	if tilemap != null:
+		contents.remove_child(tilemap)
+		tilemap.queue_free()
+		return
+	tilemap = GridMap.new()
+	tilemap.name = "TileMap"
+	tilemap.mesh_library = TILE_LIBRARY
+	tilemap.set_cell_item(Vector3i.ZERO, 0)
+	contents.add_child(tilemap)
+	tilemap.owner = contents
+
+
+func despawn() -> Error:
+	if contents == null:
+		return ERR_CANT_CREATE
 	var packed_scene := PackedScene.new()
-	if packed_scene.pack(architecture) != OK:
-		return null
-	return packed_scene
-
-
-func _set_owner_recursive(node: Node, owner: Node) -> void:
-	for child in node.get_children():
-		child.owner = owner
-		_set_owner_recursive(child, owner)
-
-
-func _apply_darkness(node: Node, darkness: float) -> void:
-	if node is MeshInstance3D:
-		var brightness := 1.0 - clampf(darkness, 0.0, 1.0)
-		var material := StandardMaterial3D.new()
-		material.albedo_color = Color(brightness, brightness, brightness)
-		node.material_override = material
-	for child in node.get_children():
-		_apply_darkness(child, darkness)
+	var error := packed_scene.pack(contents)
+	if error != OK:
+		return error
+	error = island_data_repository.save(data_idx, packed_scene)
+	if error == OK:
+		saved_on_despawn = true
+	return error
