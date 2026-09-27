@@ -8,39 +8,95 @@
 class_name Island
 extends Node3D
 
-signal clicked(Name: String)
-
-const SPHERE_SCENE := preload("res://assets/sphere.glb")
+const TILE_LIBRARY := preload("res://assets/tilemap/meshlibrary/tilesv1.tres")
 
 var tree_node_name: String
 var data_idx: int = -1
 var data: IslandData
-var island_manager: IslandManager
+var island_data_manager: IslandDataManager
 var architecture: Node
 
 
 func _ready() -> void:
-	if data_idx == -1:
-		add_child(SPHERE_SCENE.instantiate())
+	if data_idx < 0 or island_data_manager == null:
+		push_error("Island %s was spawned without island data" % tree_node_name)
 		return
-	data = island_manager.load_island_data(data_idx)
+	data = island_data_manager.load_island_data(data_idx)
 	if data == null or data.architecture == null:
+		push_error("Island %s has no PackedScene" % tree_node_name)
 		return
 	architecture = data.architecture.instantiate()
 	add_child(architecture)
+	if architecture.find_child("EditorBounds", true, false) == null:
+		var bounds := Area3D.new()
+		bounds.name = "EditorBounds"
+		bounds.collision_layer = 2
+		bounds.collision_mask = 0
+		var collision := CollisionShape3D.new()
+		collision.shape = BoxShape3D.new()
+		collision.shape.size = Vector3.ONE * 2.0
+		bounds.add_child(collision)
+		architecture.add_child(bounds)
 	if data.data.has("darkness"):
 		_apply_darkness(architecture, float(data.data["darkness"]))
+	update_grid_map_scale()
 
 
-func _on_selection_area_input_event(
-	_camera: Node,
-	event: InputEvent,
-	_event_position: Vector3,
-	_normal: Vector3,
-	_shape_idx: int
-) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		clicked.emit(tree_node_name)
+func despawn() -> Error:
+	if data == null or architecture == null:
+		return ERR_INVALID_DATA
+	var packed_scene := pack_architecture()
+	if packed_scene == null:
+		return ERR_CANT_CREATE
+	var previous_scene := data.architecture
+	data.architecture = packed_scene
+	var error := island_data_manager.save_island_data(data_idx, data)
+	if error != OK:
+		data.architecture = previous_scene
+		return error
+	queue_free()
+	return OK
+
+
+func get_grid_map() -> GridMap:
+	if architecture == null:
+		return null
+	return architecture.get_node_or_null("GridMap") as GridMap
+
+
+func add_grid_map() -> void:
+	if architecture == null or get_grid_map() != null:
+		return
+	var grid_map := GridMap.new()
+	grid_map.name = "GridMap"
+	grid_map.mesh_library = TILE_LIBRARY
+	grid_map.cell_size = Vector3.ONE * 2.0
+	grid_map.collision_layer = 4
+	grid_map.collision_mask = 0
+	architecture.add_child(grid_map)
+	update_grid_map_scale()
+
+
+func remove_grid_map() -> void:
+	var grid_map := get_grid_map()
+	if grid_map != null:
+		architecture.remove_child(grid_map)
+		grid_map.queue_free()
+
+
+func update_grid_map_scale() -> void:
+	var grid_map := get_grid_map()
+	if grid_map != null:
+		grid_map.scale = Vector3.ONE / maxf(scale.x, 0.001)
+
+
+func set_tile_at(world_position: Vector3, world_normal: Vector3, erase: bool) -> void:
+	var grid_map := get_grid_map()
+	if grid_map == null:
+		return
+	var offset := -0.01 if erase else 0.01
+	var cell := grid_map.local_to_map(grid_map.to_local(world_position + world_normal * offset))
+	grid_map.set_cell_item(cell, GridMap.INVALID_CELL_ITEM if erase else 0)
 
 
 func pack_architecture() -> PackedScene:

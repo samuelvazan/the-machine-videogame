@@ -29,6 +29,7 @@ class TreeNode:
 	var ChildType: String #Defines what preset its children use. You CANT instantiate an arbiterary child (well, you can, but shouldn't do that) you must use a preset.
 	var filled: bool #If filled=true, then that means we're dealing with a platform. If filled=false, then its just a ring.
 	var children: Array[TreeNode] #lists its children indexes.
+	var child_positions: Array[Vector3]
 
 	func _init(
 		new_name: String,
@@ -49,57 +50,73 @@ class TreeNode:
 		ChildType = new_child_type
 		filled = new_filled
 		children = []
+		child_positions = []
 
 @export var island_scene: PackedScene
 var tree: Array[TreeNode] = []
 var loaded_chunks: Array[Dictionary] = []
 var loaded_islands: Dictionary = {}
-var loaded_island_data: Dictionary = {}
-var island_data_repository := IslandDataRepository.new()
+var island_data_manager := IslandDataManager.new()
 var next_node_id := 0
-var next_data_idx := 0
 
 
 # API - ish functions. Can get used by other scripts safely. (or should, at least. double check)
 func add_tetrahedron_preset(Name: String) -> void:
 	var node_index := _find_node_index(Name)
+	if node_index == -1:
+		return
 	var parent := tree[node_index]
 	if parent.Type == "tetrahedron" and parent.Parentable:
 		parent.Parentable = false
 		parent.filled = false
 		parent.ChildType = "tetrahedron"
-		for _child_index in range(4):
-			var child := TreeNode.new(
+		for child_index in range(4):
+			if create_island(
 				_next_node_name(),
 				"tetrahedron",
 				true,
-				-1,
 				parent.Radius * TETRAHEDRON_RADIUS_SCALE,
 				Basis.IDENTITY,
 				"",
-				true
-			)
-			parent.children.append(child)
-			tree.append(child)
-		var core := TreeNode.new(
+				true,
+				Name,
+				TETRAHEDRON_POSITIONS[child_index] * parent.Radius
+			) == -1:
+				_delete_descendants(parent)
+				parent.Parentable = true
+				parent.ChildType = ""
+				_save_graph()
+				return
+		if create_island(
 			_next_node_name(),
 			"core",
 			false,
-			-1,
 			parent.Radius * CORE_RADIUS_SCALE,
 			Basis.IDENTITY,
 			"",
-			true
-		)
-		parent.children.append(core)
-		tree.append(core)
+			true,
+			Name,
+			Vector3.ZERO
+		) == -1:
+			_delete_descendants(parent)
+			parent.Parentable = true
+			parent.ChildType = ""
+			_save_graph()
+		else:
+			_save_graph()
 func delete_tetrahedron_preset(Name: String) -> void:
 	var node_index := _find_node_index(Name)
+	if node_index == -1:
+		return
 	var parent := tree[node_index]
 	if parent.ChildType == "tetrahedron":
-		_delete_descendants(parent)
+		var error := _delete_descendants(parent)
+		if error != OK:
+			push_error("Could not delete child islands of %s: %s" % [Name, error_string(error)])
+			return
 		parent.Parentable = true
 		parent.ChildType = ""
+		_save_graph()
 func toggle_tetrahedron_preset(Name: String) -> void:
 	var node_index := _find_node_index(Name)
 	if node_index == -1:
@@ -109,13 +126,11 @@ func toggle_tetrahedron_preset(Name: String) -> void:
 		delete_tetrahedron_preset(Name)
 	elif node.Type == "tetrahedron" and node.Parentable:
 		add_tetrahedron_preset(Name)
-func _on_island_clicked(Name: String) -> void:
-	toggle_tetrahedron_preset(Name)
-
-
 func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS over all the nodes and register the ones that are visible.
 	loaded_chunks.clear()
 	var node_index := _find_node_index(Name)
+	if node_index == -1:
+		return
 	var start_node := tree[node_index]
 	var nodeXYZ := Vector3.ZERO
 	var nodeRotation := start_node.RotMatrix
@@ -133,20 +148,18 @@ func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS ov
 		var node: TreeNode = current["node"]
 		var node_position: Vector3 = current["position"]
 		var node_rotation: Basis = current["rotation"]
-		if node.ChildType == "tetrahedron":
-			for child_index in range(node.children.size()):
-				var child := node.children[child_index]
-				var local_position: Vector3 = TETRAHEDRON_POSITIONS[child_index] * node.Radius
-				var child_position := node_position + node_rotation * local_position
-				var child_rotation := node_rotation * child.RotMatrix
-				if _render_distance(child, child_position, viewer) < MaxDist:
-					loaded_chunks.append(_loaded_chunk(child.Name, child_position, child_rotation, child.DataIndex, child.Radius))
-				if _ball_distance(child_position, child.Radius, viewer) < MaxDist:
-					queue.append({
-						"node": child,
-						"position": child_position,
-						"rotation": child_rotation,
-					})
+		for child_index in range(node.children.size()):
+			var child := node.children[child_index]
+			var child_position := node_position + node_rotation * node.child_positions[child_index]
+			var child_rotation := node_rotation * child.RotMatrix
+			if _render_distance(child, child_position, viewer) < MaxDist:
+				loaded_chunks.append(_loaded_chunk(child.Name, child_position, child_rotation, child.DataIndex, child.Radius))
+			if _ball_distance(child_position, child.Radius, viewer) < MaxDist:
+				queue.append({
+					"node": child,
+					"position": child_position,
+					"rotation": child_rotation,
+				})
 	_sync_loaded_islands()
 
 # Helper functions for island_manager.gd:
@@ -155,48 +168,58 @@ func _find_node_index(Name: String) -> int: # finds the node index based on the 
 		if tree[node_index].Name == Name:
 			return node_index
 	return -1
-func modify_data_idx(Name: String, data_idx: int) -> void:
+func create_island(Name: String, Type: String, Parentable: bool, Radius: float, RotMatrix: Basis, ChildType: String = "", filled: bool = false, parent_name: String = "", local_position: Vector3 = Vector3.ZERO) -> int:
+	if _find_node_index(Name) != -1 or Radius <= 0.0:
+		return -1
+	var parent: TreeNode = null
+	if parent_name != "":
+		var parent_index := _find_node_index(parent_name)
+		if parent_index == -1:
+			return -1
+		parent = tree[parent_index]
+	var data_idx := island_data_manager.create_island_data()
+	if data_idx == -1:
+		return -1
+	var node := TreeNode.new(Name, Type, Parentable, data_idx, Radius, RotMatrix, ChildType, filled)
+	tree.append(node)
+	if parent != null:
+		parent.children.append(node)
+		parent.child_positions.append(local_position)
+	_save_graph()
+	return data_idx
+func delete_island(Name: String) -> Error:
 	var node_index := _find_node_index(Name)
 	if node_index == -1:
-		return
-	tree[node_index].DataIndex = data_idx
-func create_island_data(data: IslandData) -> int:
-	while island_data_repository.exists(next_data_idx):
-		next_data_idx += 1
-	var data_idx := next_data_idx
-	var error := island_data_repository.create(data_idx, data)
-	if error != OK:
-		return -1
-	loaded_island_data[data_idx] = data
-	next_data_idx += 1
-	return data_idx
-func load_island_data(data_idx: int) -> IslandData:
-	if loaded_island_data.has(data_idx):
-		return loaded_island_data[data_idx]
-	var data := island_data_repository.load(data_idx)
-	if data != null:
-		loaded_island_data[data_idx] = data
-	return data
-func save_island_data(data_idx: int) -> Error:
-	if not loaded_island_data.has(data_idx):
+		return ERR_DOES_NOT_EXIST
+	var error := _delete_island_node(tree[node_index])
+	_save_graph()
+	return error
+func spawn_island(Name: String, position: Vector3, rotation: Basis, radius: float) -> Error:
+	var node_index := _find_node_index(Name)
+	if node_index == -1 or island_scene == null:
 		return ERR_INVALID_PARAMETER
-	return island_data_repository.save(data_idx, loaded_island_data[data_idx])
-func save_loaded_island(Name: String) -> Error:
-	if not loaded_islands.has(Name):
-		return ERR_INVALID_PARAMETER
-	var island := loaded_islands[Name] as Island
-	if island.data == null:
-		return ERR_INVALID_PARAMETER
-	var packed_scene := island.pack_architecture()
-	if packed_scene == null:
+	if loaded_islands.has(Name):
+		return ERR_ALREADY_EXISTS
+	var new_island := island_scene.instantiate() as Island
+	if new_island == null:
 		return ERR_CANT_CREATE
-	island.data.architecture = packed_scene
-	loaded_island_data[island.data_idx] = island.data
-	return save_island_data(island.data_idx)
-func delete_island_data(data_idx: int) -> Error:
-	var error := island_data_repository.delete(data_idx)
+	new_island.name = Name
+	new_island.tree_node_name = Name
+	new_island.data_idx = tree[node_index].DataIndex
+	new_island.island_data_manager = island_data_manager
+	add_child(new_island)
+	loaded_islands[Name] = new_island
+	new_island.global_transform = Transform3D(rotation, position)
+	new_island.scale = Vector3.ONE * radius
+	new_island.update_grid_map_scale()
+	return OK
+func despawn_island(Name: String) -> Error:
+	if not loaded_islands.has(Name):
+		return ERR_DOES_NOT_EXIST
+	var island := loaded_islands[Name] as Island
+	var error := island.despawn()
 	if error == OK:
-		loaded_island_data.erase(data_idx)
+		loaded_islands.erase(Name)
 	return error
 
 # The helper functions for helper functions.
@@ -204,11 +227,75 @@ func _next_node_name() -> String: # generate a unique node Name. For now: n0, n1
 	var generated_name := "n" + str(next_node_id)
 	next_node_id += 1
 	return generated_name
-func _delete_descendants(node: TreeNode) -> void: # the root node itself isnt included
-	for child in node.children:
-		_delete_descendants(child)
-		tree.erase(child)
-	node.children.clear()
+func _delete_descendants(node: TreeNode) -> Error: # the root node itself isnt included
+	for child in node.children.duplicate():
+		var error := _delete_island_node(child)
+		if error != OK:
+			return error
+	return OK
+func _delete_island_node(node: TreeNode) -> Error:
+	var error := _delete_descendants(node)
+	if error != OK:
+		return error
+	error = island_data_manager.delete_island_data(node.DataIndex)
+	if error != OK:
+		return error
+	if loaded_islands.has(node.Name):
+		var island := loaded_islands[node.Name] as Island
+		island.queue_free()
+		loaded_islands.erase(node.Name)
+	for parent in tree:
+		var child_index := parent.children.find(node)
+		if child_index != -1:
+			parent.children.remove_at(child_index)
+			parent.child_positions.remove_at(child_index)
+	tree.erase(node)
+	return OK
+func _save_graph() -> Error:
+	return island_data_manager.save_graph(tree, next_node_id)
+func _load_graph() -> Error:
+	var config := island_data_manager.load_graph()
+	if config == null:
+		return ERR_FILE_NOT_FOUND
+	var loaded_tree: Array[TreeNode] = []
+	var nodes_by_name: Dictionary = {}
+	for section in config.get_sections():
+		if section == "graph":
+			continue
+		var data_idx: int = config.get_value(section, "data_idx", -1)
+		if not island_data_manager.exists(data_idx):
+			return ERR_FILE_NOT_FOUND
+		var node := TreeNode.new(
+			section,
+			config.get_value(section, "type"),
+			config.get_value(section, "parentable"),
+			data_idx,
+			config.get_value(section, "radius"),
+			config.get_value(section, "rotation"),
+			config.get_value(section, "child_type"),
+			config.get_value(section, "filled")
+		)
+		loaded_tree.append(node)
+		nodes_by_name[section] = node
+	for node in loaded_tree:
+		var child_names: Array = config.get_value(node.Name, "children", [])
+		var positions: Array = config.get_value(node.Name, "child_positions", [])
+		for child_index in range(child_names.size()):
+			var child_name: String = child_names[child_index]
+			if not nodes_by_name.has(child_name):
+				return ERR_INVALID_DATA
+			node.children.append(nodes_by_name[child_name])
+			if positions.size() == child_names.size():
+				node.child_positions.append(positions[child_index])
+			elif node.ChildType == "tetrahedron" and child_index < TETRAHEDRON_POSITIONS.size():
+				node.child_positions.append(TETRAHEDRON_POSITIONS[child_index] * node.Radius)
+			else:
+				return ERR_INVALID_DATA
+	if not nodes_by_name.has("root"):
+		return ERR_INVALID_DATA
+	tree = loaded_tree
+	next_node_id = config.get_value("graph", "next_node_id", 0)
+	return OK
 func _ball_distance(position: Vector3, radius: float, viewer: Vector3) -> float:
 	return maxf(position.distance_to(viewer) - radius, 0.0)
 func _sphere_distance(position: Vector3, radius: float, viewer: Vector3) -> float:
@@ -223,22 +310,16 @@ func _sync_loaded_islands() -> void: # Actually SPAWN the nodes.
 		var chunk_name: String = chunk["Name"]
 		requested_islands[chunk_name] = true
 		if not loaded_islands.has(chunk_name):
-			var new_island := island_scene.instantiate() as Island
-			new_island.name = chunk_name
-			new_island.tree_node_name = chunk_name
-			new_island.data_idx = chunk["DataIndex"]
-			new_island.island_manager = self
-			new_island.clicked.connect(_on_island_clicked)
-			add_child(new_island)
-			loaded_islands[chunk_name] = new_island
+			spawn_island(chunk_name, chunk["position"], chunk["rotation"], chunk["Radius"])
+		if not loaded_islands.has(chunk_name):
+			continue
 		var island: Node3D = loaded_islands[chunk_name]
 		island.global_transform = Transform3D(chunk["rotation"], chunk["position"])
 		island.scale = Vector3.ONE * chunk["Radius"]
+		(island as Island).update_grid_map_scale()
 	for chunk_name in loaded_islands.keys():
 		if not requested_islands.has(chunk_name):
-			var island_to_remove: Node3D = loaded_islands[chunk_name]
-			island_to_remove.queue_free()
-			loaded_islands.erase(chunk_name)
+			despawn_island(chunk_name)
 func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index: int, radius: float) -> Dictionary: #compact chunk data into a dict, making it suitable for adding to loaded_chunks[] list
 	return {
 		"Name": Name,
@@ -250,19 +331,21 @@ func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index:
 
 # Runs on intialization.
 func _ready() -> void: # This is where I'll create an initial structure for now.
-	var root := TreeNode.new("root", "tetrahedron", true, -1, 50.0, Basis.IDENTITY, "", true)
-	tree.append(root)
+	if _load_graph() == OK:
+		return
+	if create_island("root", "tetrahedron", true, 50.0, Basis.IDENTITY, "", true) == -1:
+		return
+	var root := tree[0]
 	add_tetrahedron_preset(root.Name)
-	#modify_data_idx(root.children[0].Name, 1)
-	#modify_data_idx(root.children[1].Name, 1)
-	#modify_data_idx(root.children[2].Name, 1)
-	add_tetrahedron_preset(root.children[3].Name)
-	#modify_data_idx(root.children[3].children[0].Name, 1)
+	if root.children.size() >= 4:
+		add_tetrahedron_preset(root.children[3].Name)
 
 @export var rotation_speed_degrees := 5.0
 
 # Runs in a loop, forever, until terminated. It should never get terminated.
 func _process(delta: float) -> void:
+	if tree.is_empty():
+		return
 	var rotation_step := Basis(Vector3.BACK, deg_to_rad(rotation_speed_degrees * delta))
 	for node in tree:
 		node.RotMatrix = (node.RotMatrix * rotation_step).orthonormalized()

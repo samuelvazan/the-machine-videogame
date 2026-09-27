@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://d3g1s4k7t758m" path="res://island_manager.gd" id="1_0xm2m"]
 [ext_resource type="PackedScene" uid="uid://cw2v1ady7pwif" path="res://island.tscn" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://dskexdt3achk1" path="res://camera3d.gd" id="3_h2yge"]
+[ext_resource type="Script" uid="uid://be1cb3148bv1x" path="res://island_editor.gd" id="4_editor"]
 
 [node name="Main" type="Node3D" unique_id=840515144]
 
@@ -20,3 +21,15 @@ script = ExtResource("3_h2yge")
 
 [node name="OmniLight3D" type="OmniLight3D" parent="EnvironmentManager/Camera3D" unique_id=1817662544]
 omni_range = 86.405
+
+[node name="IslandEditor" type="Node" parent="EnvironmentManager/Camera3D"]
+script = ExtResource("4_editor")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="EnvironmentManager/Camera3D/IslandEditor"]
+
+[node name="ModeLabel" type="Label" parent="EnvironmentManager/Camera3D/IslandEditor/CanvasLayer"]
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 600.0
+offset_bottom = 38.0
+mouse_filter = 2
