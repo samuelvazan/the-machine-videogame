@@ -27,16 +27,20 @@ func _ready() -> void:
 		return
 	architecture = data.architecture.instantiate()
 	add_child(architecture)
-	if architecture.find_child("EditorBounds", true, false) == null:
-		var bounds := Area3D.new()
-		bounds.name = "EditorBounds"
-		bounds.collision_layer = 2
-		bounds.collision_mask = 0
+	var old_bounds := architecture.find_child("EditorBounds", true, false)
+	if old_bounds != null:
+		old_bounds.get_parent().remove_child(old_bounds)
+		old_bounds.queue_free()
+	var selection_area := architecture.find_child("SelectionArea", true, false) as Area3D
+	if selection_area == null:
+		selection_area = Area3D.new()
+		selection_area.name = "SelectionArea"
 		var collision := CollisionShape3D.new()
-		collision.shape = BoxShape3D.new()
-		collision.shape.size = Vector3.ONE * 2.0
-		bounds.add_child(collision)
-		architecture.add_child(bounds)
+		collision.shape = SphereShape3D.new()
+		selection_area.add_child(collision)
+		architecture.add_child(selection_area)
+	selection_area.collision_layer = 2
+	selection_area.collision_mask = 0
 	if data.data.has("darkness"):
 		_apply_darkness(architecture, float(data.data["darkness"]))
 	update_grid_map_scale()
@@ -56,6 +60,12 @@ func despawn() -> Error:
 		return error
 	queue_free()
 	return OK
+
+
+func set_world_transform(world_position: Vector3, world_rotation: Basis, radius: float) -> void:
+	global_transform = Transform3D(world_rotation, world_position)
+	scale = Vector3.ONE * radius
+	update_grid_map_scale()
 
 
 func get_grid_map() -> GridMap:

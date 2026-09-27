@@ -52,7 +52,7 @@ func _physics_process(_delta: float) -> void:
 	match mode:
 		Mode.HIERARCHY:
 			if button == MOUSE_BUTTON_LEFT:
-				island_manager.toggle_tetrahedron_preset(island.tree_node_name)
+				island_manager.toggle_preset(island.tree_node_name)
 		Mode.STRUCTURE:
 			if button == MOUSE_BUTTON_LEFT:
 				island.add_grid_map()
@@ -75,24 +75,21 @@ func _pick(screen_position: Vector2) -> Dictionary:
 		if island != null:
 			nearest = {"island": island, "position": result["position"], "normal": result["normal"]}
 			if result["collider"] is Area3D:
-				nearest["normal"] = _box_normal(island, result["position"])
+				nearest["normal"] = (result["position"] - island.global_position).normalized()
 			distance = origin.distance_to(result["position"])
 	for candidate in island_manager.loaded_islands.values():
 		var island := candidate as Island
 		var local_origin := island.to_local(origin)
-		if maxf(absf(local_origin.x), maxf(absf(local_origin.y), absf(local_origin.z))) >= 1.0:
+		if local_origin.length_squared() >= 1.0:
 			continue
 		var local_direction := island.to_local(origin + direction) - local_origin
-		for axis in range(3):
-			if absf(local_direction[axis]) < 0.000001:
-				continue
-			var side := signf(local_direction[axis])
-			var exit_distance := (side - local_origin[axis]) / local_direction[axis]
-			if exit_distance > 0.0 and exit_distance < distance:
-				distance = exit_distance
-				var normal := Vector3.ZERO
-				normal[axis] = side
-				nearest = {"island": island, "position": origin + direction * distance, "normal": (island.global_basis * normal).normalized()}
+		var a := local_direction.length_squared()
+		var b := local_origin.dot(local_direction)
+		var exit_distance := (-b + sqrt(b * b + a * (1.0 - local_origin.length_squared()))) / a
+		if exit_distance > 0.0 and exit_distance < distance:
+			distance = exit_distance
+			var position := origin + direction * distance
+			nearest = {"island": island, "position": position, "normal": (position - island.global_position).normalized()}
 	return nearest
 
 
@@ -100,14 +97,6 @@ func _island_from(node: Node) -> Island:
 	while node != null and not node is Island:
 		node = node.get_parent()
 	return node as Island
-
-
-func _box_normal(island: Island, position: Vector3) -> Vector3:
-	var local := island.to_local(position)
-	var axis := local.abs().max_axis_index()
-	var normal := Vector3.ZERO
-	normal[axis] = signf(local[axis])
-	return (island.global_basis * normal).normalized()
 
 
 func _show_mode() -> void:

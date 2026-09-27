@@ -10,6 +10,9 @@
 [node name="IslandManager" type="Node" parent="." unique_id=147407782]
 script = ExtResource("1_0xm2m")
 island_scene = ExtResource("1_ig7tw")
+starter_root_type = "tetrahedron"
+starter_preset_name = "tetrahedron"
+starter_nested_child_index = 3
 
 [node name="EntityManager" type="Node" parent="." unique_id=837358867]
 

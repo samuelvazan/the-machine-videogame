@@ -9,16 +9,6 @@
 class_name IslandManager
 extends Node
 
-const TETRAHEDRON_POSITIONS := [
-	Vector3(0.0, 0.0, -0.550509375),
-	Vector3(0.519025, 0.0, 0.183503125),
-	Vector3(-0.2595125, 0.449490625, 0.183503125),
-	Vector3(-0.2595125, -0.449490625, 0.183503125),
-	Vector3.ZERO,
-]
-const TETRAHEDRON_RADIUS_SCALE := 0.446875
-const CORE_RADIUS_SCALE := 0.1
-
 class TreeNode:
 	var Name: String #Name. Unique. This is for a friendlier user-code interface
 	var Type: String #Type. Nonunique, changable. Can be 'core' or 'tetrahedron' or 'platform' and such.
@@ -53,6 +43,12 @@ class TreeNode:
 		child_positions = []
 
 @export var island_scene: PackedScene
+@export var root_name := "root"
+@export var starter_root_radius := 50.0
+@export var starter_root_type: String
+@export var starter_preset_name: String
+@export var starter_nested_child_index := -1
+var presets: Dictionary = IslandPresets.PRESETS.duplicate(true)
 var tree: Array[TreeNode] = []
 var loaded_chunks: Array[Dictionary] = []
 var loaded_islands: Dictionary = {}
@@ -61,71 +57,70 @@ var next_node_id := 0
 
 
 # API - ish functions. Can get used by other scripts safely. (or should, at least. double check)
-func add_tetrahedron_preset(Name: String) -> void:
+func apply_preset(Name: String, preset_name: String) -> Error:
 	var node_index := _find_node_index(Name)
 	if node_index == -1:
-		return
+		return ERR_DOES_NOT_EXIST
 	var parent := tree[node_index]
-	if parent.Type == "tetrahedron" and parent.Parentable:
-		parent.Parentable = false
-		parent.filled = false
-		parent.ChildType = "tetrahedron"
-		for child_index in range(4):
-			if create_island(
-				_next_node_name(),
-				"tetrahedron",
-				true,
-				parent.Radius * TETRAHEDRON_RADIUS_SCALE,
-				Basis.IDENTITY,
-				"",
-				true,
-				Name,
-				TETRAHEDRON_POSITIONS[child_index] * parent.Radius
-			) == -1:
-				_delete_descendants(parent)
-				parent.Parentable = true
-				parent.ChildType = ""
-				_save_graph()
-				return
+	var preset := _find_preset(preset_name)
+	if preset.is_empty() or not parent.Parentable or parent.Type != preset["parent_type"]:
+		return ERR_INVALID_PARAMETER
+	for child in preset["children"]:
+		if not child.has("type") or not child.has("radius_scale") or not child.has("offset"):
+			return ERR_INVALID_DATA
+	var previous_filled := parent.filled
+	parent.Parentable = false
+	parent.filled = preset.get("filled_with_children", false)
+	parent.ChildType = preset_name
+	for child in preset["children"]:
 		if create_island(
 			_next_node_name(),
-			"core",
-			false,
-			parent.Radius * CORE_RADIUS_SCALE,
-			Basis.IDENTITY,
+			child["type"],
+			child.get("parentable", false),
+			parent.Radius * child["radius_scale"],
+			child.get("rotation", Basis.IDENTITY),
 			"",
-			true,
+			child.get("filled", true),
 			Name,
-			Vector3.ZERO
+			child["offset"] * parent.Radius
 		) == -1:
 			_delete_descendants(parent)
 			parent.Parentable = true
+			parent.filled = previous_filled
 			parent.ChildType = ""
 			_save_graph()
-		else:
-			_save_graph()
-func delete_tetrahedron_preset(Name: String) -> void:
+			return ERR_CANT_CREATE
+	_save_graph()
+	return OK
+func remove_preset(Name: String) -> Error:
 	var node_index := _find_node_index(Name)
 	if node_index == -1:
-		return
+		return ERR_DOES_NOT_EXIST
 	var parent := tree[node_index]
-	if parent.ChildType == "tetrahedron":
-		var error := _delete_descendants(parent)
-		if error != OK:
-			push_error("Could not delete child islands of %s: %s" % [Name, error_string(error)])
-			return
-		parent.Parentable = true
-		parent.ChildType = ""
-		_save_graph()
-func toggle_tetrahedron_preset(Name: String) -> void:
+	var preset := _find_preset(parent.ChildType)
+	if preset.is_empty():
+		return ERR_INVALID_PARAMETER
+	var error := _delete_descendants(parent)
+	if error != OK:
+		return error
+	parent.Parentable = true
+	parent.filled = preset.get("filled_without_children", true)
+	parent.ChildType = ""
+	_save_graph()
+	return OK
+func toggle_preset(Name: String) -> Error:
 	var node_index := _find_node_index(Name)
 	if node_index == -1:
-		return
+		return ERR_DOES_NOT_EXIST
 	var node := tree[node_index]
-	if node.ChildType == "tetrahedron":
-		delete_tetrahedron_preset(Name)
-	elif node.Type == "tetrahedron" and node.Parentable:
-		add_tetrahedron_preset(Name)
+	if node.ChildType != "":
+		return remove_preset(Name)
+	for preset_name in presets:
+		if presets[preset_name]["parent_type"] == node.Type:
+			return apply_preset(Name, preset_name)
+	return ERR_INVALID_PARAMETER
+func _find_preset(preset_name: String) -> Dictionary:
+	return presets.get(preset_name, {})
 func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS over all the nodes and register the ones that are visible.
 	loaded_chunks.clear()
 	var node_index := _find_node_index(Name)
@@ -209,9 +204,7 @@ func spawn_island(Name: String, position: Vector3, rotation: Basis, radius: floa
 	new_island.island_data_manager = island_data_manager
 	add_child(new_island)
 	loaded_islands[Name] = new_island
-	new_island.global_transform = Transform3D(rotation, position)
-	new_island.scale = Vector3.ONE * radius
-	new_island.update_grid_map_scale()
+	new_island.set_world_transform(position, rotation, radius)
 	return OK
 func despawn_island(Name: String) -> Error:
 	if not loaded_islands.has(Name):
@@ -287,11 +280,12 @@ func _load_graph() -> Error:
 			node.children.append(nodes_by_name[child_name])
 			if positions.size() == child_names.size():
 				node.child_positions.append(positions[child_index])
-			elif node.ChildType == "tetrahedron" and child_index < TETRAHEDRON_POSITIONS.size():
-				node.child_positions.append(TETRAHEDRON_POSITIONS[child_index] * node.Radius)
 			else:
-				return ERR_INVALID_DATA
-	if not nodes_by_name.has("root"):
+				var preset := _find_preset(node.ChildType)
+				if preset.is_empty() or child_index >= preset["children"].size():
+					return ERR_INVALID_DATA
+				node.child_positions.append(preset["children"][child_index]["offset"] * node.Radius)
+	if not nodes_by_name.has(root_name):
 		return ERR_INVALID_DATA
 	tree = loaded_tree
 	next_node_id = config.get_value("graph", "next_node_id", 0)
@@ -311,12 +305,9 @@ func _sync_loaded_islands() -> void: # Actually SPAWN the nodes.
 		requested_islands[chunk_name] = true
 		if not loaded_islands.has(chunk_name):
 			spawn_island(chunk_name, chunk["position"], chunk["rotation"], chunk["Radius"])
-		if not loaded_islands.has(chunk_name):
-			continue
-		var island: Node3D = loaded_islands[chunk_name]
-		island.global_transform = Transform3D(chunk["rotation"], chunk["position"])
-		island.scale = Vector3.ONE * chunk["Radius"]
-		(island as Island).update_grid_map_scale()
+		else:
+			var island: Island = loaded_islands[chunk_name]
+			island.set_world_transform(chunk["position"], chunk["rotation"], chunk["Radius"])
 	for chunk_name in loaded_islands.keys():
 		if not requested_islands.has(chunk_name):
 			despawn_island(chunk_name)
@@ -333,12 +324,13 @@ func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index:
 func _ready() -> void: # This is where I'll create an initial structure for now.
 	if _load_graph() == OK:
 		return
-	if create_island("root", "tetrahedron", true, 50.0, Basis.IDENTITY, "", true) == -1:
+	if create_island(root_name, starter_root_type, true, starter_root_radius, Basis.IDENTITY, "", true) == -1:
 		return
 	var root := tree[0]
-	add_tetrahedron_preset(root.Name)
-	if root.children.size() >= 4:
-		add_tetrahedron_preset(root.children[3].Name)
+	if apply_preset(root.Name, starter_preset_name) != OK:
+		return
+	if starter_nested_child_index >= 0 and root.children.size() > starter_nested_child_index:
+		apply_preset(root.children[starter_nested_child_index].Name, starter_preset_name)
 
 @export var rotation_speed_degrees := 5.0
 
@@ -350,7 +342,7 @@ func _process(delta: float) -> void:
 	for node in tree:
 		node.RotMatrix = (node.RotMatrix * rotation_step).orthonormalized()
 	BFS(
-		"root",
+		root_name,
 		$"../EnvironmentManager/Camera3D".global_position,
 		200.0
 	)
