@@ -18,18 +18,20 @@ func _input(event):
 	if event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	
-	# Recapture on click
-	if event is InputEventMouseButton and event.pressed:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# Toggle mouse capture
+	if event.is_action_pressed("EditorToggle"):
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 
-# Editor camera implemented
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotation.y -= event.relative.x * 0.003
 		rotation.x -= event.relative.y * 0.003
 		rotation.x = clamp(rotation.x, -1.5, 1.5)
 
 func _process(delta):
-	# Movement relative to where the camera is facing.
+	if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE: #If editor==true, rotate using arrow keys. Else, mouse position is used.
+		rotation.y -= Input.get_axis("camRleft", "camRright") * rotate_speed * delta
+		rotation.x -= Input.get_axis("camRup", "camRdown") * rotate_speed * delta
+		rotation.x = clamp(rotation.x, -1.5, 1.5)
 	position += basis.x * Input.get_axis("camLeft", "camRight") * move_speed * delta
 	position += basis.y * Input.get_axis("camDown", "camUp") * move_speed * delta
 	position += -basis.z * Input.get_axis("camBackward", "camForward") * move_speed * delta
