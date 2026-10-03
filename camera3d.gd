@@ -23,15 +23,13 @@ func _input(event):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotation.y -= event.relative.x * 0.003
-		rotation.x -= event.relative.y * 0.003
-		rotation.x = clamp(rotation.x, -1.5, 1.5)
+		rotate_object_local(Vector3.UP, -event.relative.x * 0.003)
+		rotate_object_local(Vector3.RIGHT, -event.relative.y * 0.003)
 
 func _process(delta):
 	if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE: #If editor==true, rotate using arrow keys. Else, mouse position is used.
-		rotation.y -= Input.get_axis("camRleft", "camRright") * rotate_speed * delta
-		rotation.x -= Input.get_axis("camRup", "camRdown") * rotate_speed * delta
-		rotation.x = clamp(rotation.x, -1.5, 1.5)
+		rotate_object_local(Vector3.UP, -Input.get_axis("camRleft", "camRright") * rotate_speed * delta)
+		rotate_object_local(Vector3.RIGHT, -Input.get_axis("camRup", "camRdown") * rotate_speed * delta)
 	position += basis.x * Input.get_axis("camLeft", "camRight") * move_speed * delta
 	position += basis.y * Input.get_axis("camDown", "camUp") * move_speed * delta
 	position += -basis.z * Input.get_axis("camBackward", "camForward") * move_speed * delta
