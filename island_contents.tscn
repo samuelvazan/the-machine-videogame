@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://cn3bjsjg00akh"]
+[gd_scene format=3 uid="uid://cn3bjsjg00akh"]
 
 [ext_resource type="PackedScene" uid="uid://dhrhhqq7ycatr" path="res://assets/sphere.glb" id="1_sphere"]
 

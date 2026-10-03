@@ -25,14 +25,13 @@ script = ExtResource("3_h2yge")
 [node name="OmniLight3D" type="OmniLight3D" parent="EnvironmentManager/Camera3D" unique_id=1817662544]
 omni_range = 86.405
 
-[node name="IslandEditor" type="Node" parent="EnvironmentManager/Camera3D"]
+[node name="IslandEditor" type="Node" parent="EnvironmentManager/Camera3D" unique_id=1253494405]
 script = ExtResource("4_editor")
 
-[node name="CanvasLayer" type="CanvasLayer" parent="EnvironmentManager/Camera3D/IslandEditor"]
+[node name="CanvasLayer" type="CanvasLayer" parent="EnvironmentManager/Camera3D/IslandEditor" unique_id=29695299]
 
-[node name="ModeLabel" type="Label" parent="EnvironmentManager/Camera3D/IslandEditor/CanvasLayer"]
+[node name="ModeLabel" type="Label" parent="EnvironmentManager/Camera3D/IslandEditor/CanvasLayer" unique_id=1976256739]
 offset_left = 12.0
 offset_top = 12.0
 offset_right = 600.0
 offset_bottom = 38.0
-mouse_filter = 2
