@@ -121,6 +121,8 @@ func toggle_preset(Name: String) -> Error:
 	return ERR_INVALID_PARAMETER
 func _find_preset(preset_name: String) -> Dictionary:
 	return presets.get(preset_name, {})
+
+# Perform BFS
 func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS over all the nodes and register the ones that are visible.
 	loaded_chunks.clear()
 	var node_index := _find_node_index(Name)
