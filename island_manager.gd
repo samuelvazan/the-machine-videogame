@@ -343,8 +343,11 @@ func _process(delta: float) -> void:
 	var rotation_step := Basis(Vector3.BACK, deg_to_rad(rotation_speed_degrees * delta))
 	for node in tree:
 		node.RotMatrix = (node.RotMatrix * rotation_step).orthonormalized()
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
 	BFS(
 		root_name,
-		$"../EnvironmentManager/Camera3D".global_position,
+		camera.global_position,
 		200.0
 	)
