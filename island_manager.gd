@@ -332,7 +332,7 @@ func _ready() -> void: # This is where I'll create an initial structure for now.
 	if starter_nested_child_index >= 0 and root.children.size() > starter_nested_child_index:
 		apply_preset(root.children[starter_nested_child_index].Name, starter_preset_name)
 
-@export var rotation_speed_degrees := 5.0
+@export var rotation_speed_degrees := 0.0 #This is the speed controll. Temporarily disabled, but DO NOT REMOVE IT. Its usefull.
 
 # Runs in a loop, forever, until terminated. It should never get terminated.
 func _process(delta: float) -> void:
