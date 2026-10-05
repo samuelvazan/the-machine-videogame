@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://bvhsekhb286o6"]
+
+[ext_resource type="Script" uid="uid://dskexdt3achk1" path="res://camera3d.gd" id="1_onrkg"]
+[ext_resource type="Script" uid="uid://be1cb3148bv1x" path="res://island_editor.gd" id="2_i3pqv"]
+
+[node name="Player" type="Node3D" unique_id=1953649094]
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=338598050]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4594054, 3.376021)
+script = ExtResource("1_onrkg")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="Camera3D" unique_id=1607389017]
+omni_range = 86.405
+
+[node name="IslandEditor" type="Node" parent="Camera3D" unique_id=894878580]
+script = ExtResource("2_i3pqv")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="Camera3D/IslandEditor" unique_id=2137379245]
+
+[node name="ModeLabel" type="Label" parent="Camera3D/IslandEditor/CanvasLayer" unique_id=2065613455]
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 600.0
+offset_bottom = 38.0
+metadata/_edit_use_anchors_ = true

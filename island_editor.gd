@@ -5,7 +5,7 @@ enum Mode { HIERARCHY, STRUCTURE, TILES }
 const RAY_LENGTH := 10000.0
 
 @onready var camera: Camera3D = get_parent()
-@onready var island_manager: IslandManager = $"../../../IslandManager"
+@onready var island_manager: IslandManager = $"../../../../../IslandManager"
 @onready var mode_label: Label = $CanvasLayer/ModeLabel
 
 var mode := Mode.HIERARCHY

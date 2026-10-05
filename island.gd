@@ -119,10 +119,10 @@ func pack_architecture() -> PackedScene:
 	return packed_scene
 
 
-func _set_owner_recursive(node: Node, owner: Node) -> void:
+func _set_owner_recursive(node: Node, scene_owner: Node) -> void:
 	for child in node.get_children():
-		child.owner = owner
-		_set_owner_recursive(child, owner)
+		child.owner = scene_owner
+		_set_owner_recursive(child, scene_owner)
 
 
 func _apply_darkness(node: Node, darkness: float) -> void:
