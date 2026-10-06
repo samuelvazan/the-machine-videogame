@@ -18,9 +18,10 @@ sky = SubResource("Sky_lquwl")
 glow_enabled = true
 volumetric_fog_enabled = true
 volumetric_fog_density = 0.1025
-volumetric_fog_albedo = Color(0.80784315, 1, 1, 1)
 volumetric_fog_temporal_reprojection_enabled = false
 volumetric_fog_temporal_reprojection_amount = 0.68
+
+[sub_resource type="BoxMesh" id="BoxMesh_612tc"]
 
 [node name="Main" type="Node3D" unique_id=840515144]
 
@@ -40,6 +41,10 @@ starter_nested_child_index = 3
 
 [node name="EntityManager" type="Node" parent="." unique_id=837358867]
 script = ExtResource("3_h2yge")
-move_speed = 30.0
 
 [node name="EnvironmentManager" type="Node" parent="." unique_id=307312071]
+
+[node name="map" type="Node3D" parent="." unique_id=123595773]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="map" unique_id=692716792]
+mesh = SubResource("BoxMesh_612tc")
