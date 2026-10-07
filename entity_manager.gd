@@ -74,6 +74,7 @@ func suspend_entity(Name: String) -> Error: # Packs a loaded entity into a saved
 		return ERR_DOES_NOT_EXIST
 	var entity: Node = loaded_entities[Name]
 	entity.spawn_position = entity.get_world_position()
+	entity.prepare_for_pack()
 	var packed := PackedScene.new()
 	var error := packed.pack(entity)
 	if error != OK:

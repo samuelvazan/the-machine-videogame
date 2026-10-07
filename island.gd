@@ -15,9 +15,17 @@ var data_idx: int = -1
 var data: IslandData
 var island_data_manager: IslandDataManager
 var architecture: Node
+var physics_space: RID
+var physics_objects: Array[CollisionObject3D] = []
+var original_physics_transforms: Array[Transform3D] = []
+var original_physics_top_levels: Array[bool] = []
 
 
 func _ready() -> void:
+	physics_space = PhysicsServer3D.space_create()
+	PhysicsServer3D.space_set_active(physics_space, true)
+	PhysicsServer3D.area_set_param(physics_space, PhysicsServer3D.AREA_PARAM_GRAVITY, ProjectSettings.get_setting("physics/3d/default_gravity"))
+	PhysicsServer3D.area_set_param(physics_space, PhysicsServer3D.AREA_PARAM_GRAVITY_VECTOR, ProjectSettings.get_setting("physics/3d/default_gravity_vector"))
 	if data_idx < 0 or island_data_manager == null:
 		push_error("Island %s was spawned without island data" % tree_node_name)
 		return
@@ -44,6 +52,16 @@ func _ready() -> void:
 	if data.data.has("darkness"):
 		_apply_darkness(architecture, float(data.data["darkness"]))
 	update_grid_map_scale()
+	physics_objects = PhysicsSpaceUtils.collect_collision_objects(architecture)
+	for object in physics_objects:
+		original_physics_transforms.append(object.transform)
+		original_physics_top_levels.append(object.top_level)
+	PhysicsSpaceUtils.move_objects_to_space(physics_objects, Transform3D.IDENTITY, global_transform, physics_space)
+
+
+func _exit_tree() -> void:
+	if physics_space.is_valid():
+		PhysicsServer3D.free_rid(physics_space)
 
 
 func despawn() -> Error:
@@ -112,6 +130,11 @@ func set_tile_at(world_position: Vector3, world_normal: Vector3, erase: bool) ->
 func pack_architecture() -> PackedScene:
 	if architecture == null:
 		return null
+	for index in range(physics_objects.size()):
+		var object := physics_objects[index]
+		if is_instance_valid(object):
+			object.top_level = original_physics_top_levels[index]
+			object.transform = original_physics_transforms[index]
 	_set_owner_recursive(architecture, architecture)
 	var packed_scene := PackedScene.new()
 	if packed_scene.pack(architecture) != OK:
