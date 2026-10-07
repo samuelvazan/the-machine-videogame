@@ -22,13 +22,7 @@ extends Node
 # If time is exceeded, it deletes the node entirely with all its history. If it reaches the player's
 # visibility range (some constant) it will be unsuspended and let again into the scene tree.
 
-# Importantly, player is just another entity. Do *not* include checks that assume stuff, like, if there's a player
-# already in existence, don't spawn another one. There can be multiple players, and many other weird things.
-
-# To Codex: Inspire yourself by island_manager.gd. It is a way bigger script that this one is going to be, but it should have a simmilliar structure to this one approximately.
-
-# Do not consider anything else. Only do this script and entity.tscn. Do NOT modify anything else or do anything other than what is specified here. That'll be done later.
-# If it seems that this script is missing something, please ask for clarification so in the terminal and await further instructions. There should be no ambiguity.
+# Importantly, player is just another entity. I think it's a good idea to allow 2+ players to be created
 
 const STORAGE_DIR := "user://entities"
 const PLAYER_DATA_INDEX := 0
@@ -38,7 +32,7 @@ const PLAYER_DATA_INDEX := 0
 var loaded_entities: Dictionary = {}
 var suspended_entities: Dictionary = {}
 
-func _ready() -> void:
+func _ready() -> void: # Runs on initialization. Restores saved entities and spawns a player if there isn't one.
 	_load_suspended_entities()
 	var has_player := false
 	for entity in loaded_entities.values():
@@ -53,7 +47,8 @@ func _ready() -> void:
 			suffix += 1
 		spawn_entity(player_name, PLAYER_DATA_INDEX)
 
-func spawn_entity(Name: String, data_index: int, init_info: Resource = null, spawn_position: Vector3 = Vector3.ZERO) -> Error:
+# API-ish functions. Can technically get called by external scripts. I do NOT recommend it, though. They are meant for entity_manager, if you're using them then there's probably something wrong.
+func spawn_entity(Name: String, data_index: int, init_info: Resource = null, spawn_position: Vector3 = Vector3.ZERO) -> Error: # Spawns an entity from entity_scene and tracks it by its unique Name.
 	if Name.is_empty() or loaded_entities.has(Name) or suspended_entities.has(Name):
 		return ERR_ALREADY_EXISTS
 	if entity_scene == null:
@@ -74,8 +69,7 @@ func spawn_entity(Name: String, data_index: int, init_info: Resource = null, spa
 	add_child(entity)
 	loaded_entities[Name] = entity
 	return OK
-
-func suspend_entity(Name: String) -> Error:
+func suspend_entity(Name: String) -> Error: # Packs a loaded entity into a saved scene and remembers when to restore and deletion timeout.
 	if not loaded_entities.has(Name):
 		return ERR_DOES_NOT_EXIST
 	var entity: Node = loaded_entities[Name]
@@ -100,8 +94,7 @@ func suspend_entity(Name: String) -> Error:
 	remove_child(entity)
 	entity.queue_free()
 	return OK
-
-func unsuspend_entity(Name: String) -> Error:
+func unsuspend_entity(Name: String) -> Error: # Restores a suspended entity to the scene tree and removes its saved snapshot.
 	if not suspended_entities.has(Name):
 		return ERR_DOES_NOT_EXIST
 	var packed: PackedScene = suspended_entities[Name]["scene"]
@@ -117,8 +110,7 @@ func unsuspend_entity(Name: String) -> Error:
 	loaded_entities[Name] = entity
 	suspended_entities.erase(Name)
 	return OK
-
-func delete_entity(Name: String) -> Error:
+func delete_entity(Name: String) -> Error: # Deletes an entity, whether it is loaded or suspended.
 	if loaded_entities.has(Name):
 		var entity: Node = loaded_entities[Name]
 		loaded_entities.erase(Name)
@@ -132,25 +124,16 @@ func delete_entity(Name: String) -> Error:
 		return OK
 	return ERR_DOES_NOT_EXIST
 
-func _process(delta: float) -> void:
-	var camera := get_viewport().get_camera_3d()
-	for Name in suspended_entities.keys():
-		var state: Dictionary = suspended_entities[Name]
-		state["remaining"] -= delta
-		if state["remaining"] <= 0.0:
-			delete_entity(Name)
-		elif camera != null and camera.global_position.distance_to(state["position"]) <= state["range"] and camera.is_position_in_frustum(state["position"]):
-			unsuspend_entity(Name)
 
-func _notification(what: int) -> void:
+# Helper functions for the helper functions. (well, not always, but generally low-level less abstract functions)
+func _notification(what: int) -> void: # Suspends loaded entities on close or pause, and restores them on resume.
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
 		for Name in loaded_entities.keys():
 			suspend_entity(Name)
 	elif what == NOTIFICATION_APPLICATION_RESUMED:
 		for Name in suspended_entities.keys():
 			unsuspend_entity(Name)
-
-func _load_suspended_entities() -> void:
+func _load_suspended_entities() -> void: # Loads saved entity scenes from storage back into the scene tree.
 	var directory := DirAccess.open(STORAGE_DIR)
 	if directory == null:
 		return
@@ -171,9 +154,17 @@ func _load_suspended_entities() -> void:
 		var error := DirAccess.remove_absolute(ProjectSettings.globalize_path(STORAGE_DIR.path_join(file_name)))
 		if error != OK:
 			push_error("Could not remove restored entity snapshot: " + file_name)
-
-func _ensure_storage_dir() -> Error:
+func _ensure_storage_dir() -> Error: # Creates the directory used to store suspended entities.
 	return DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(STORAGE_DIR))
-
-func _entity_path(Name: String) -> String:
+func _entity_path(Name: String) -> String: # Builds the saved scene path from an entity's Name.
 	return STORAGE_DIR.path_join(Name.to_utf8_buffer().hex_encode() + ".scn")
+
+func _process(delta: float) -> void: # Runs every frame. Deletes expired suspended entities or restores visible ones.
+	var camera := get_viewport().get_camera_3d()
+	for Name in suspended_entities.keys():
+		var state: Dictionary = suspended_entities[Name]
+		state["remaining"] -= delta
+		if state["remaining"] <= 0.0:
+			delete_entity(Name)
+		elif camera != null and camera.global_position.distance_to(state["position"]) <= state["range"] and camera.is_position_in_frustum(state["position"]):
+			unsuspend_entity(Name)

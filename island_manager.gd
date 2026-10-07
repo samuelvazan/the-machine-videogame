@@ -50,6 +50,7 @@ class TreeNode:
 @export var starter_nested_child_index := -1
 var presets: Dictionary = IslandPresets.PRESETS.duplicate(true)
 var tree: Array[TreeNode] = []
+var nodes_by_name: Dictionary = {}
 var loaded_chunks: Array[Dictionary] = []
 var loaded_islands: Dictionary = {}
 var island_data_manager := IslandDataManager.new()
@@ -58,10 +59,9 @@ var next_node_id := 0
 
 # API - ish functions. Can get used by other scripts safely. (or should, at least. double check)
 func apply_preset(Name: String, preset_name: String) -> Error:
-	var node_index := _find_node_index(Name)
-	if node_index == -1:
+	var parent := _find_node(Name)
+	if parent == null:
 		return ERR_DOES_NOT_EXIST
-	var parent := tree[node_index]
 	var preset := _find_preset(preset_name)
 	if preset.is_empty() or not parent.Parentable or parent.Type != preset["parent_type"]:
 		return ERR_INVALID_PARAMETER
@@ -88,15 +88,12 @@ func apply_preset(Name: String, preset_name: String) -> Error:
 			parent.Parentable = true
 			parent.filled = previous_filled
 			parent.ChildType = ""
-			_save_graph()
 			return ERR_CANT_CREATE
-	_save_graph()
 	return OK
 func remove_preset(Name: String) -> Error:
-	var node_index := _find_node_index(Name)
-	if node_index == -1:
+	var parent := _find_node(Name)
+	if parent == null:
 		return ERR_DOES_NOT_EXIST
-	var parent := tree[node_index]
 	var preset := _find_preset(parent.ChildType)
 	if preset.is_empty():
 		return ERR_INVALID_PARAMETER
@@ -106,13 +103,11 @@ func remove_preset(Name: String) -> Error:
 	parent.Parentable = true
 	parent.filled = preset.get("filled_without_children", true)
 	parent.ChildType = ""
-	_save_graph()
 	return OK
 func toggle_preset(Name: String) -> Error:
-	var node_index := _find_node_index(Name)
-	if node_index == -1:
+	var node := _find_node(Name)
+	if node == null:
 		return ERR_DOES_NOT_EXIST
-	var node := tree[node_index]
 	if node.ChildType != "":
 		return remove_preset(Name)
 	for preset_name in presets:
@@ -125,10 +120,9 @@ func _find_preset(preset_name: String) -> Dictionary:
 # Perform BFS
 func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS over all the nodes and register the ones that are visible.
 	loaded_chunks.clear()
-	var node_index := _find_node_index(Name)
-	if node_index == -1:
+	var start_node := _find_node(Name)
+	if start_node == null:
 		return
-	var start_node := tree[node_index]
 	var nodeXYZ := Vector3.ZERO
 	var nodeRotation := start_node.RotMatrix
 	if _render_distance(start_node, nodeXYZ, viewer) < MaxDist:
@@ -160,40 +154,34 @@ func BFS(Name: String, viewer: Vector3, MaxDist: float) -> void: #Perform BFS ov
 	_sync_loaded_islands()
 
 # Helper functions for island_manager.gd:
-func _find_node_index(Name: String) -> int: # finds the node index based on the Name.
-	for node_index in range(tree.size()):
-		if tree[node_index].Name == Name:
-			return node_index
-	return -1
+func _find_node(Name: String) -> TreeNode:
+	return nodes_by_name.get(Name) as TreeNode
 func create_island(Name: String, Type: String, Parentable: bool, Radius: float, RotMatrix: Basis, ChildType: String = "", filled: bool = false, parent_name: String = "", local_position: Vector3 = Vector3.ZERO) -> int:
-	if _find_node_index(Name) != -1 or Radius <= 0.0:
+	if _find_node(Name) != null or Radius <= 0.0:
 		return -1
 	var parent: TreeNode = null
 	if parent_name != "":
-		var parent_index := _find_node_index(parent_name)
-		if parent_index == -1:
+		parent = _find_node(parent_name)
+		if parent == null:
 			return -1
-		parent = tree[parent_index]
 	var data_idx := island_data_manager.create_island_data()
 	if data_idx == -1:
 		return -1
 	var node := TreeNode.new(Name, Type, Parentable, data_idx, Radius, RotMatrix, ChildType, filled)
 	tree.append(node)
+	nodes_by_name[Name] = node
 	if parent != null:
 		parent.children.append(node)
 		parent.child_positions.append(local_position)
-	_save_graph()
 	return data_idx
 func delete_island(Name: String) -> Error:
-	var node_index := _find_node_index(Name)
-	if node_index == -1:
+	var node := _find_node(Name)
+	if node == null:
 		return ERR_DOES_NOT_EXIST
-	var error := _delete_island_node(tree[node_index])
-	_save_graph()
-	return error
+	return _delete_island_node(node)
 func spawn_island(Name: String, position: Vector3, rotation: Basis, radius: float) -> Error:
-	var node_index := _find_node_index(Name)
-	if node_index == -1 or island_scene == null:
+	var node := _find_node(Name)
+	if node == null or island_scene == null:
 		return ERR_INVALID_PARAMETER
 	if loaded_islands.has(Name):
 		return ERR_ALREADY_EXISTS
@@ -202,7 +190,7 @@ func spawn_island(Name: String, position: Vector3, rotation: Basis, radius: floa
 		return ERR_CANT_CREATE
 	new_island.name = Name
 	new_island.tree_node_name = Name
-	new_island.data_idx = tree[node_index].DataIndex
+	new_island.data_idx = node.DataIndex
 	new_island.island_data_manager = island_data_manager
 	add_child(new_island)
 	loaded_islands[Name] = new_island
@@ -245,6 +233,7 @@ func _delete_island_node(node: TreeNode) -> Error:
 			parent.children.remove_at(child_index)
 			parent.child_positions.remove_at(child_index)
 	tree.erase(node)
+	nodes_by_name.erase(node.Name)
 	return OK
 func _save_graph() -> Error:
 	return island_data_manager.save_graph(tree, next_node_id)
@@ -253,7 +242,7 @@ func _load_graph() -> Error:
 	if config == null:
 		return ERR_FILE_NOT_FOUND
 	var loaded_tree: Array[TreeNode] = []
-	var nodes_by_name: Dictionary = {}
+	var loaded_nodes_by_name: Dictionary = {}
 	for section in config.get_sections():
 		if section == "graph":
 			continue
@@ -271,15 +260,15 @@ func _load_graph() -> Error:
 			config.get_value(section, "filled")
 		)
 		loaded_tree.append(node)
-		nodes_by_name[section] = node
+		loaded_nodes_by_name[section] = node
 	for node in loaded_tree:
 		var child_names: Array = config.get_value(node.Name, "children", [])
 		var positions: Array = config.get_value(node.Name, "child_positions", [])
 		for child_index in range(child_names.size()):
 			var child_name: String = child_names[child_index]
-			if not nodes_by_name.has(child_name):
+			if not loaded_nodes_by_name.has(child_name):
 				return ERR_INVALID_DATA
-			node.children.append(nodes_by_name[child_name])
+			node.children.append(loaded_nodes_by_name[child_name])
 			if positions.size() == child_names.size():
 				node.child_positions.append(positions[child_index])
 			else:
@@ -287,9 +276,10 @@ func _load_graph() -> Error:
 				if preset.is_empty() or child_index >= preset["children"].size():
 					return ERR_INVALID_DATA
 				node.child_positions.append(preset["children"][child_index]["offset"] * node.Radius)
-	if not nodes_by_name.has(root_name):
+	if not loaded_nodes_by_name.has(root_name):
 		return ERR_INVALID_DATA
 	tree = loaded_tree
+	nodes_by_name = loaded_nodes_by_name
 	next_node_id = config.get_value("graph", "next_node_id", 0)
 	return OK
 func _ball_distance(position: Vector3, radius: float, viewer: Vector3) -> float:
@@ -324,17 +314,22 @@ func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index:
 
 # Runs on intialization.
 func _ready() -> void: # This is where I'll create an initial structure for now.
-	if _load_graph() == OK:
+	if _load_graph() == OK: #you can disable this check if you want to regenerate the scene completely
 		return
-	if create_island(root_name, starter_root_type, true, starter_root_radius, Basis.IDENTITY, "", true) == -1:
-		return
+	create_island(root_name, starter_root_type, true, starter_root_radius, Basis.IDENTITY, "", true)
 	var root := tree[0]
 	if apply_preset(root.Name, starter_preset_name) != OK:
 		return
-	if starter_nested_child_index >= 0 and root.children.size() > starter_nested_child_index:
-		apply_preset(root.children[starter_nested_child_index].Name, starter_preset_name)
+	for i in range((4+4**2+4**3+4**4)/4): #create recursive tree
+		for j in range(4):
+			apply_preset('n'+str(i*4+j), starter_preset_name)
 
-@export var rotation_speed_degrees := 0.0 #This is the speed controll. Temporarily disabled, but DO NOT REMOVE IT. Its usefull.
+func _exit_tree() -> void:
+	var error := _save_graph()
+	if error != OK:
+		push_error("Could not save island graph: " + error_string(error))
+
+@export var rotation_speed_degrees := 1.0 #This is the speed controll. Temporarily disabled, but DO NOT REMOVE IT. Its usefull.
 
 # Runs in a loop, forever, until terminated. It should never get terminated.
 func _process(delta: float) -> void:
@@ -349,5 +344,5 @@ func _process(delta: float) -> void:
 	BFS(
 		root_name,
 		camera.global_position,
-		200.0
+		20.0
 	)
