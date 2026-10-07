@@ -44,7 +44,7 @@ class TreeNode:
 
 @export var island_scene: PackedScene
 @export var root_name := "root"
-@export var starter_root_radius := 50.0
+@export var starter_root_radius := 1000.0 #carefull, this one only gets applied when you rebuild the scenetree!
 @export var starter_root_type: String
 @export var starter_preset_name: String
 @export var starter_nested_child_index := -1
@@ -329,7 +329,7 @@ func _exit_tree() -> void:
 	if error != OK:
 		push_error("Could not save island graph: " + error_string(error))
 
-@export var rotation_speed_degrees := 1.0 #This is the speed controll. Temporarily disabled, but DO NOT REMOVE IT. Its usefull.
+@export var rotation_speed_degrees := 0.0 #This is the speed controll. Temporarily disabled, but DO NOT REMOVE IT. Its usefull.
 
 # Runs in a loop, forever, until terminated. It should never get terminated.
 func _process(delta: float) -> void:
@@ -344,5 +344,5 @@ func _process(delta: float) -> void:
 	BFS(
 		root_name,
 		camera.global_position,
-		20.0
+		60.0
 	)

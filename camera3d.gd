@@ -6,7 +6,7 @@
 
 extends Camera3D
 
-@export var move_speed := 1.0
+@export var move_speed := 20.0
 @export var rotate_speed := 1.5
 
 func _ready():
