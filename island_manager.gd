@@ -329,7 +329,7 @@ func _exit_tree() -> void:
 	if error != OK:
 		push_error("Could not save island graph: " + error_string(error))
 
-@export var rotation_speed_degrees := 0.0 #This is the speed controll. Temporarily disabled, but DO NOT REMOVE IT. Its usefull.
+@export var rotation_speed_degrees := 10.5 #This is the speed controll. Temporarily disabled, but DO NOT REMOVE IT. Its usefull.
 
 # Runs in a loop, forever, until terminated. It should never get terminated.
 func _process(delta: float) -> void:
