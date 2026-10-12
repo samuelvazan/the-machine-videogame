@@ -65,21 +65,37 @@ func _physics_process(_delta: float) -> void:
 func _pick(screen_position: Vector2) -> Dictionary:
 	var origin := camera.project_ray_origin(screen_position)
 	var direction := camera.project_ray_normal(screen_position)
-	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * RAY_LENGTH, 6)
-	query.collide_with_areas = true
-	var result := camera.get_world_3d().direct_space_state.intersect_ray(query)
 	var nearest: Dictionary = {}
 	var distance := RAY_LENGTH
-	if not result.is_empty():
-		var island := _island_from(result["collider"])
-		if island != null:
-			nearest = {"island": island, "position": result["position"], "normal": result["normal"]}
-			if result["collider"] is Area3D:
-				nearest["normal"] = (result["position"] - island.global_position).normalized()
-			distance = origin.distance_to(result["position"])
+	var nearest_tile: Dictionary = {}
+	var tile_distance := RAY_LENGTH
 	for candidate in island_manager.loaded_islands.values():
 		var island := candidate as Island
+		if island == null or not is_instance_valid(island) or not island.physics_space.is_valid():
+			continue
 		var local_origin := island.to_local(origin)
+		var local_end := island.to_local(origin + direction * RAY_LENGTH)
+		var tile_query := PhysicsRayQueryParameters3D.create(local_origin, local_end, 4)
+		var tile_result := PhysicsServer3D.space_get_direct_state(island.physics_space).intersect_ray(tile_query)
+		if not tile_result.is_empty():
+			var tile_position: Vector3 = island.global_transform * tile_result["position"]
+			var hit_distance := origin.distance_to(tile_position)
+			if hit_distance < tile_distance:
+				tile_distance = hit_distance
+				var tile_normal: Vector3 = (island.global_transform.basis.inverse().transposed() * tile_result["normal"]).normalized()
+				nearest_tile = {"island": island, "position": tile_position, "normal": tile_normal}
+				if hit_distance < distance:
+					distance = hit_distance
+					nearest = nearest_tile
+		var area_query := PhysicsRayQueryParameters3D.create(local_origin, local_end, 2)
+		area_query.collide_with_areas = true
+		var area_result := PhysicsServer3D.space_get_direct_state(island.physics_space).intersect_ray(area_query)
+		if not area_result.is_empty():
+			var area_position: Vector3 = island.global_transform * area_result["position"]
+			var area_distance := origin.distance_to(area_position)
+			if area_distance < distance:
+				distance = area_distance
+				nearest = {"island": island, "position": area_position, "normal": (area_position - island.global_position).normalized()}
 		if local_origin.length_squared() >= 1.0:
 			continue
 		var local_direction := island.to_local(origin + direction) - local_origin
@@ -90,13 +106,7 @@ func _pick(screen_position: Vector2) -> Dictionary:
 			distance = exit_distance
 			var position := origin + direction * distance
 			nearest = {"island": island, "position": position, "normal": (position - island.global_position).normalized()}
-	return nearest
-
-
-func _island_from(node: Node) -> Island:
-	while node != null and not node is Island:
-		node = node.get_parent()
-	return node as Island
+	return nearest_tile if mode == Mode.TILES and not nearest_tile.is_empty() else nearest
 
 
 func _show_mode() -> void:

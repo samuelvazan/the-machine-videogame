@@ -2,13 +2,14 @@
 # Please don't remove the comments, they're helpfull. Likewise, don't add comments either.
 # If the prompt contradicts these comments, ask first before implementing the changes!
 
-# is a script that every single island has. It handles what the island does when it spawns
+# this is a script that every single island has. It handles what the island does when it spawns
 # (ie., loads contents based on the island's dataID, saves changes when supposed to despawn, etc..)
 
 class_name Island
 extends Node3D
 
 const TILE_LIBRARY := preload("res://assets/tilemap/meshlibrary/tilesv1.tres")
+const GRID_MAP_SCRIPT := preload("res://island_grid_map.gd")
 
 var tree_node_name: String
 var data_idx: int = -1
@@ -52,11 +53,15 @@ func _ready() -> void:
 	if data.data.has("darkness"):
 		_apply_darkness(architecture, float(data.data["darkness"]))
 	update_grid_map_scale()
+	var grid_map := get_grid_map()
+	if grid_map != null:
+		_ensure_grid_map_physics(grid_map)
 	physics_objects = PhysicsSpaceUtils.collect_collision_objects(architecture)
 	for object in physics_objects:
 		original_physics_transforms.append(object.transform)
 		original_physics_top_levels.append(object.top_level)
 	PhysicsSpaceUtils.move_objects_to_space(physics_objects, Transform3D.IDENTITY, global_transform, physics_space)
+	_sync_grid_map_physics_transform()
 
 
 func _exit_tree() -> void:
@@ -84,6 +89,7 @@ func set_world_transform(world_position: Vector3, world_rotation: Basis, radius:
 	global_transform = Transform3D(world_rotation, world_position)
 	scale = Vector3.ONE * radius
 	update_grid_map_scale()
+	_sync_grid_map_physics_transform()
 
 
 func get_grid_map() -> GridMap:
@@ -95,14 +101,21 @@ func get_grid_map() -> GridMap:
 func add_grid_map() -> void:
 	if architecture == null or get_grid_map() != null:
 		return
-	var grid_map := GridMap.new()
+	var grid_map := IslandGridMap.new()
 	grid_map.name = "GridMap"
 	grid_map.mesh_library = TILE_LIBRARY
 	grid_map.cell_size = Vector3.ONE * 2.0
-	grid_map.collision_layer = 4
+	grid_map.collision_layer = 0
 	grid_map.collision_mask = 0
 	architecture.add_child(grid_map)
 	update_grid_map_scale()
+	var body := _ensure_grid_map_physics(grid_map)
+	original_physics_transforms.append(body.transform)
+	original_physics_top_levels.append(body.top_level)
+	physics_objects.append(body)
+	var objects: Array[CollisionObject3D] = [body]
+	PhysicsSpaceUtils.move_objects_to_space(objects, Transform3D.IDENTITY, global_transform, physics_space)
+	_sync_grid_map_physics_transform()
 
 
 func remove_grid_map() -> void:
@@ -125,6 +138,33 @@ func set_tile_at(world_position: Vector3, world_normal: Vector3, erase: bool) ->
 	var offset := -0.01 if erase else 0.01
 	var cell := grid_map.local_to_map(grid_map.to_local(world_position + world_normal * offset))
 	grid_map.set_cell_item(cell, GridMap.INVALID_CELL_ITEM if erase else 0)
+	if grid_map is IslandGridMap:
+		(grid_map as IslandGridMap).update_collision_cell(cell)
+
+
+func _ensure_grid_map_physics(grid_map: GridMap) -> StaticBody3D:
+	if not grid_map is IslandGridMap:
+		grid_map.set_script(GRID_MAP_SCRIPT)
+	grid_map.collision_layer = 0
+	grid_map.collision_mask = 0
+	var body := grid_map.get_node_or_null(IslandGridMap.COLLISION_BODY_NAME) as StaticBody3D
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = IslandGridMap.COLLISION_BODY_NAME
+		grid_map.add_child(body)
+	body.collision_layer = 4
+	body.collision_mask = 0
+	(grid_map as IslandGridMap).rebuild_collision_shapes()
+	return body
+
+
+func _sync_grid_map_physics_transform() -> void:
+	var grid_map := get_grid_map() as IslandGridMap
+	if grid_map == null:
+		return
+	var body := grid_map.get_node_or_null(IslandGridMap.COLLISION_BODY_NAME) as StaticBody3D
+	if body != null and body.top_level:
+		body.global_transform = PhysicsSpaceUtils.to_island_local(global_transform, grid_map.global_transform)
 
 
 func pack_architecture() -> PackedScene:

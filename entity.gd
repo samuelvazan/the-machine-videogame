@@ -10,12 +10,7 @@ const PRESETS := {
 @export var visibility_range := 200.0
 @export var suspend_delay := 2.0
 @export var suspension_timeout := 9999999.0
-var unseen_timhave made a severe and continuous lapse in judgement...
-209
-Reply
-@SebastianCavolina
-18 hours ago
-Actually, The Louisiana State Lottery scandal was THE biggest state-wide scam in the 1800's. They sold tickets by mail, 90% of their money came from outside Louisiana. THey gathered a frickton of cash and the rigged the results, and people said it was legite := 0.0
+var unseen_time := 0.0
 var current_island: Island
 var island_transform := Transform3D.IDENTITY
 var physics_objects: Array[CollisionObject3D] = []
