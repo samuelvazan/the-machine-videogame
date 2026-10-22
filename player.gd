@@ -1,3 +1,5 @@
+# This also kinda controlls the camera* (well, camera instantiated from Player, therefore it moves automatically, no code here actually)
+
 extends CharacterBody3D
 
 @export var move_speed := 20.0
