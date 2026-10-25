@@ -225,7 +225,7 @@ func _delete_island_node(node: TreeNode) -> Error:
 		return error
 	if loaded_islands.has(node.Name):
 		var island := loaded_islands[node.Name] as Island
-		island.queue_free()
+		island.queue_despawn()
 		loaded_islands.erase(node.Name)
 	for parent in tree:
 		var child_index := parent.children.find(node)
@@ -314,13 +314,15 @@ func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index:
 
 # Runs on intialization.
 func _ready() -> void: # This is where I'll create an initial structure for now.
-	if _load_graph() == OK: #you can disable this check if you want to regenerate the scene completely
+	#if _load_graph() == OK: #you can disable this check if you want to regenerate the scene completely
+	#	return
+	if _find_node("n243") != null: #this means our scene tree is loaded
 		return
 	create_island(root_name, starter_root_type, true, starter_root_radius, Basis.IDENTITY, "", true)
 	var root := tree[0]
 	if apply_preset(root.Name, starter_preset_name) != OK:
 		return
-	for i in range((4+4**2+4**3+4**4)/4): #create recursive tree
+	for i in range(1+4+4**2+4**3+4**4): #create recursive tree
 		for j in range(4):
 			apply_preset('n'+str(i*4+j), starter_preset_name)
 

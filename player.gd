@@ -19,12 +19,12 @@ func _input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_object_local(Vector3.UP, -event.relative.x * 0.003)
+		camera.rotate_object_local(Vector3.UP, -event.relative.x * 0.003)
 		camera.rotate_object_local(Vector3.RIGHT, -event.relative.y * 0.003)
 
 func _process(delta: float) -> void:
 	if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
-		rotate_object_local(Vector3.UP, -Input.get_axis("camRleft", "camRright") * rotate_speed * delta)
+		camera.rotate_object_local(Vector3.UP, -Input.get_axis("camRleft", "camRright") * rotate_speed * delta)
 		camera.rotate_object_local(Vector3.RIGHT, -Input.get_axis("camRup", "camRdown") * rotate_speed * delta)
 
 func _physics_process(_delta: float) -> void:

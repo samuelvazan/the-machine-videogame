@@ -136,6 +136,8 @@ func _nearest_island(world_position: Vector3) -> Island:
 	return nearest
 
 func _refresh_nearest_island() -> void:
+	if current_island != null and is_instance_valid(current_island) and current_island.is_queued_for_deletion():
+		prepare_for_pack()
 	var nearest := _nearest_island(get_world_position())
 	if nearest != null and nearest != current_island:
 		_switch_island(nearest)
@@ -169,6 +171,13 @@ func _switch_island(new_island: Island) -> void:
 		root.global_transform = world_visuals[index]
 	current_island = new_island
 	island_transform = to_transform
+	var despawn_callback := _on_island_despawning.bind(new_island)
+	if not new_island.despawning.is_connected(despawn_callback):
+		new_island.despawning.connect(despawn_callback)
+
+func _on_island_despawning(island: Island) -> void:
+	if current_island == island:
+		prepare_for_pack()
 
 func _physics_process(_delta: float) -> void:
 	_refresh_nearest_island()
@@ -209,6 +218,7 @@ func prepare_for_pack() -> void:
 	if current_island == null:
 		return
 	_project_visuals()
+	var from_transform := island_transform
 	var world_transforms: Dictionary = {}
 	for root in local_roots:
 		world_transforms[root] = PhysicsSpaceUtils.to_world_transform(island_transform, root.global_transform)
@@ -216,8 +226,10 @@ func prepare_for_pack() -> void:
 		world_transforms[object] = PhysicsSpaceUtils.to_world_transform(island_transform, object.global_transform)
 	for root in visual_roots:
 		world_transforms[root] = root.global_transform
+	PhysicsSpaceUtils.move_objects_to_space(physics_objects, from_transform, Transform3D.IDENTITY, get_viewport().world_3d.space)
 	_restore_world_transforms(self, world_transforms)
 	current_island = null
+	island_transform = Transform3D.IDENTITY
 
 func _restore_world_transforms(node: Node, world_transforms: Dictionary) -> void:
 	if world_transforms.has(node):

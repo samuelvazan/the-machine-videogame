@@ -8,6 +8,8 @@
 class_name Island
 extends Node3D
 
+signal despawning
+
 const TILE_LIBRARY := preload("res://assets/tilemap/meshlibrary/tilesv1.tres")
 const GRID_MAP_SCRIPT := preload("res://island_grid_map.gd")
 
@@ -81,8 +83,13 @@ func despawn() -> Error:
 	if error != OK:
 		data.architecture = previous_scene
 		return error
-	queue_free()
+	queue_despawn()
 	return OK
+
+
+func queue_despawn() -> void:
+	despawning.emit()
+	queue_free()
 
 
 func set_world_transform(world_position: Vector3, world_rotation: Basis, radius: float) -> void:
