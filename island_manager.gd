@@ -55,6 +55,7 @@ var loaded_chunks: Array[Dictionary] = []
 var loaded_islands: Dictionary = {}
 var island_data_manager := IslandDataManager.new()
 var next_node_id := 0
+var graph_ready_to_save := false
 
 
 # API - ish functions. Can get used by other scripts safely. (or should, at least. double check)
@@ -248,7 +249,7 @@ func _load_graph() -> Error:
 			continue
 		var data_idx: int = config.get_value(section, "data_idx", -1)
 		if not island_data_manager.exists(data_idx):
-			return ERR_FILE_NOT_FOUND
+			return ERR_INVALID_DATA
 		var node := TreeNode.new(
 			section,
 			config.get_value(section, "type"),
@@ -316,17 +317,30 @@ func _loaded_chunk(Name: String, position: Vector3, rotation: Basis, data_index:
 func _ready() -> void: # This is where I'll create an initial structure for now.
 	#if _load_graph() == OK: #you can disable this check if you want to regenerate the scene completely
 	#	return
-	if _find_node("n243") != null: #this means our scene tree is loaded
+	var load_error := _load_graph()
+	if load_error == OK: #this means our scene tree is loaded
+		var delete_error := delete_island(root_name) #intentionally deleting all the previous islands FOREVER.
+		if delete_error != OK:
+			push_error("Could not delete old island hierarchy: " + error_string(delete_error))
+			return
+		next_node_id = 0
+	elif load_error != ERR_FILE_NOT_FOUND:
+		push_error("Could not load old island hierarchy: " + error_string(load_error))
 		return
-	create_island(root_name, starter_root_type, true, starter_root_radius, Basis.IDENTITY, "", true)
+	if create_island(root_name, starter_root_type, true, starter_root_radius, Basis.IDENTITY, "", true) == -1:
+		push_error("Could not create root island")
+		return
 	var root := tree[0]
 	if apply_preset(root.Name, starter_preset_name) != OK:
 		return
-	for i in range(1+4+4**2+4**3+4**4): #create recursive tree
+	for i in range(1+4+4**2+4**3+4**4): #create recursive tre
 		for j in range(4):
 			apply_preset('n'+str(i*4+j), starter_preset_name)
+	graph_ready_to_save = true
 
 func _exit_tree() -> void:
+	if not graph_ready_to_save:
+		return
 	var error := _save_graph()
 	if error != OK:
 		push_error("Could not save island graph: " + error_string(error))
